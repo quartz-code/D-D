@@ -1,0 +1,61 @@
+{
+  "_комментарий": "Скопируйте этот файл в config/config.json и впишите свои значения. config.json в репозиторий не попадает (см. .gitignore). Указывать нужно ТОЛЬКО те ключи, которые вы меняете, — остальные возьмутся из умолчаний в entropy/config.py.",
+
+  "deepseek": {
+    "_комментарий": "Ключ надёжнее держать в переменной окружения: export DEEPSEEK_API_KEY=... — тогда поле api_key оставьте пустым.",
+    "api_key": "",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-chat",
+    "temperature": 1.15,
+    "max_tokens": 700,
+    "timeout_sec": 60
+  },
+
+  "chat": {
+    "_комментарий": "limit_messages и limit_chars — третий уровень ограничения разума: сколько обращений и символов партия тратит за сессию. attitude_drift: «ручной» — отношение меняет ведущий, «авто» — приложение само теплеет в ответ на участие игроков.",
+    "limit_messages": 40,
+    "limit_chars": 24000,
+    "history_window": 24,
+    "delay_min_sec": 0.8,
+    "delay_max_sec": 2.4,
+    "typewriter_cps": 90,
+    "show_gm_notes": true,
+    "attitude_drift": "ручной"
+  },
+
+  "terminal": {
+    "_комментарий": "sandbox_root — каталог, с которого начинают игроки (его создаёт run_seed.py). real_execution=false переводит терминал в режим «только заготовленные ответы». restrict_to_root=true не выпускает игроков командой cd за пределы квеста. locale держит дочерние команды в UTF-8: иначе rev зависает на русском тексте.",
+    "sandbox_root": "~/комплекс",
+    "shell": "/bin/sh",
+    "locale": "C.UTF-8",
+    "real_execution": true,
+    "restrict_to_root": false,
+    "command_timeout_sec": 20,
+    "typewriter_cps": 0,
+    "show_gm_notes": true
+  },
+
+  "ui": {
+    "_комментарий": "Оформление боевого сигнала: мигание и звонок терминала.",
+    "color": true,
+    "bell": true,
+    "flash_frames": 6,
+    "flash_delay_sec": 0.16
+  },
+
+  "session": {
+    "state_dir": "state",
+    "state_file": "state/session.json",
+    "events_file": "state/events.jsonl",
+    "history_file": "state/chat_history.json"
+  },
+
+  "files": {
+    "complex": "data/complex.json",
+    "stages": "data/stages.json",
+    "persona": "data/persona.json",
+    "scenario": "data/scenario/default.json",
+    "canned_dir": "data/canned"
+  }
+}
