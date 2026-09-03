@@ -40,6 +40,12 @@ class ChatTestCase(QuestTestCase):
             func(*args, **kwargs)
         return buffer.getvalue()
 
+    @staticmethod
+    def реплика(вывод: str) -> str:
+        """Только то, что видят игроки: без служебных пометок ведущему."""
+        часть = вывод.split("распорядитель>")[-1]
+        return "\n".join(с for с in часть.splitlines() if not с.startswith("[мастер]"))
+
 
 class TestChat(ChatTestCase):
     def test_ответ_модели_доходит_до_игроков(self):

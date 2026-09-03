@@ -16,7 +16,7 @@ import ssl
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 from . import config
 
@@ -76,25 +76,78 @@ class DeepSeekClient:
                 time.sleep(self.retry_pause * (2 ** попытка))
         raise последняя  # pragma: no cover — цикл всегда возвращает или бросает
 
-    def _chat_once(self, messages: list[dict[str, str]]) -> tuple[str, dict[str, Any]]:
-        """Одно обращение к API без повторов."""
+    def chat_stream(self, messages: list[dict[str, str]],
+                    кусок: Callable[[str], None]) -> tuple[str, dict[str, Any]]:
+        """Получает ответ потоком, отдавая куски по мере поступления.
+
+        ``кусок`` вызывается на каждую порцию текста. Возвращает собранный
+        ответ целиком и статистику — как обычный :meth:`chat`.
+
+        Повторы здесь не делаются: часть ответа уже могла быть напечатана, и
+        второй проход выглядел бы как оговорка машины.
+        """
+        запрос = self._запрос(messages, поток=True)
+        собранное: list[str] = []
+        расход: dict[str, Any] = {}
+        try:
+            with urllib.request.urlopen(запрос, timeout=self.timeout,
+                                        context=ssl.create_default_context()) as поток:
+                for сырая in поток:
+                    строка = сырая.decode("utf-8", "replace").strip()
+                    if not строка or not строка.startswith("data:"):
+                        continue
+                    данные = строка[5:].strip()
+                    if данные == "[DONE]":
+                        break
+                    try:
+                        порция = json.loads(данные)
+                    except json.JSONDecodeError:
+                        continue
+                    if порция.get("usage"):
+                        расход = порция["usage"]
+                    for выбор in порция.get("choices", []):
+                        текст = (выбор.get("delta") or {}).get("content") or ""
+                        if текст:
+                            собранное.append(текст)
+                            кусок(текст)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:400]
+            ошибка = DeepSeekError(f"HTTP {exc.code}: {detail}")
+            ошибка.временная = exc.code in self.ПОВТОРЯЕМЫЕ_КОДЫ
+            raise ошибка from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            ошибка = DeepSeekError(f"поток прерван: {exc}")
+            ошибка.временная = True
+            raise ошибка from exc
+
+        ответ = "".join(собранное).strip()
+        if not ответ:
+            raise DeepSeekError("модель прислала пустой поток")
+        return ответ, расход
+
+    def _запрос(self, messages: list[dict[str, str]], поток: bool = False):
+        """Готовит HTTP-запрос к /chat/completions."""
         payload = {
             "model": self.model,
             "messages": messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "stream": False,
+            "stream": поток,
         }
-        request = urllib.request.Request(
+        return urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.key}",
-                "Accept": "application/json",
+                "Accept": "text/event-stream" if поток else "application/json",
             },
             method="POST",
         )
+
+    def _chat_once(self, messages: list[dict[str, str]]) -> tuple[str, dict[str, Any]]:
+        """Одно обращение к API без повторов."""
+        request = self._запрос(messages)
         try:
             with urllib.request.urlopen(request, timeout=self.timeout,
                                         context=ssl.create_default_context()) as response:
@@ -153,6 +206,14 @@ class OfflineClient:
     @property
     def name(self) -> str:
         return "офлайн-заглушка (модель не вызывается)"
+
+    def chat_stream(self, messages: list[dict[str, str]],
+                    кусок) -> tuple[str, dict[str, Any]]:
+        """Заглушка тоже умеет «поток» — отдаёт ответ по словам."""
+        ответ, расход = self.chat(messages)
+        for слово in ответ.split(" "):
+            кусок(слово + " ")
+        return ответ, расход
 
     def chat(self, messages: list[dict[str, str]]) -> tuple[str, dict[str, Any]]:
         last = messages[-1]["content"] if messages else ""

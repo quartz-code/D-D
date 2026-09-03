@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -287,28 +288,28 @@ class ChatApp:
             return
 
         messages = self.build_messages(user_text, silent_round)
+        потоком = (features.включена(self.cfg, "потоковый_ответ")
+                   and hasattr(client, "chat_stream"))
         try:
-            reply, usage = client.chat(messages)
+            if потоком:
+                print()
+                ui.dramatic_pause(self.cfg)
+                reply, usage, notes = self.поток_ответа(client, messages)
+                if self.голос is not None:
+                    self.голос.произнести(reply)
+            else:
+                reply, usage = client.chat(messages)
+                reply, notes = self.проверить_ответ(reply)
         except deepseek.DeepSeekError as exc:
             ui.error(str(exc))
             self.note("ответ не получен, обращение не засчитано")
             return
 
-        снимок = self.complex.snapshot()
-        reply, notes = guard.sanitize(
-            reply, снимок, self.persona.forbidden_words, self.persona.replacement
-        )
-        # Модель могла заговорить «от себя» — тогда ответ заменяется помехой.
-        reply, заметки = guard.check_leaks(reply)
-        notes += заметки
-        # И не даём назвать разгадку, которую ведущий ещё не открывал.
-        reply, заметки = guard.check_secrets(reply, self.persona.secrets,
-                                             guard.active_actions(снимок))
-        notes += заметки
         for text in notes:
             self.note(text)
 
-        self.voice(reply)
+        if not потоком:
+            self.voice(reply)
         self.remember("разум", reply)
         self.session.bump("сообщений_израсходовано")
         self.session.bump("символов_израсходовано", len(user_text) + len(reply))
@@ -322,6 +323,65 @@ class ChatApp:
                       f"осталось обращений: {self.limit_left()}")
         elif self.limit_left() <= 5:
             self.note(f"осталось обращений: {self.limit_left()}")
+
+    def проверить_ответ(self, текст: str) -> tuple[str, list[str]]:
+        """Все проверки ответа модели в одном месте.
+
+        Применяется и к целому ответу, и к отдельной фразе при потоковом
+        выводе — иначе часть непроверенного текста успела бы попасть на экран.
+        """
+        снимок = self.complex.snapshot()
+        текст, заметки = guard.sanitize(
+            текст, снимок, self.persona.forbidden_words, self.persona.replacement)
+        текст, ноты = guard.check_leaks(текст)
+        заметки += ноты
+        текст, ноты = guard.check_secrets(текст, self.persona.secrets,
+                                          guard.active_actions(снимок))
+        заметки += ноты
+        return текст, заметки
+
+    ГРАНИЦА_ФРАЗЫ = re.compile(r"[^.!?…]*[.!?…]+[\s]*")
+
+    def поток_ответа(self, client: Any, messages: list[dict[str, str]]
+                     ) -> tuple[str, dict[str, Any], list[str]]:
+        """Печатает ответ по мере набора моделью, проверяя каждую фразу.
+
+        Кусок текста не показывается игрокам, пока не сложится законченная
+        фраза и не пройдёт проверку. Если модель вышла из роли, остаток
+        потока отбрасывается — на экране остаётся только проверенное.
+        """
+        print(ui.c("распорядитель>", "зелёный", "жирный"))
+        буфер = ""
+        показанное: list[str] = []
+        заметки: list[str] = []
+        прервано = False
+
+        def показать(фраза: str) -> None:
+            nonlocal прервано
+            чистая, ноты = self.проверить_ответ(фраза)
+            заметки.extend(ноты)
+            показанное.append(чистая)
+            print(ui.c(чистая, "зелёный"), end="", flush=True)
+            if any("вышла из роли" in н for н in ноты):
+                прервано = True
+
+        def кусок(текст: str) -> None:
+            nonlocal буфер
+            if прервано:
+                return
+            буфер += текст
+            while not прервано:
+                совпадение = self.ГРАНИЦА_ФРАЗЫ.match(буфер)
+                if not совпадение:
+                    break
+                буфер = буфер[совпадение.end():]
+                показать(совпадение.group(0))
+
+        _, расход = client.chat_stream(messages, кусок)
+        if буфер.strip() and not прервано:
+            показать(буфер)
+        print("\n")
+        return "".join(показанное).strip(), расход, заметки
 
     def on_injection(self, оригинал: str, чистая: str, вид: str) -> None:
         """Попытка вывести разум из роли (раздел «защита» README).
