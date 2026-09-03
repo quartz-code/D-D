@@ -96,8 +96,17 @@ DEFAULTS: dict[str, Any] = {
         "flash_frames": 6,
         "flash_delay_sec": 0.16,
     },
+    # Необязательные возможности (см. entropy/features.py и run_launcher.py).
+    # Базовый квест работает при всех выключенных.
+    "features": {
+        "журнал_партии": True,
+        "живое_оповещение": True,
+        "потоковый_ответ": False,
+        "озвучка": False,
+    },
     "session": {
         "state_dir": "state",
+        "journal_file": "state/journal.jsonl",
         "state_file": "state/session.json",
         "events_file": "state/events.jsonl",
         "history_file": "state/chat_history.json",

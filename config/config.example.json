@@ -44,11 +44,21 @@
     "flash_delay_sec": 0.16
   },
 
+  "features": {
+    "_комментарий": "Необязательные возможности. Проще менять через пусковое окно: python3 run_launcher.py",
+    "журнал_партии": true,
+    "живое_оповещение": true,
+    "потоковый_ответ": false,
+    "озвучка": false
+  },
+
   "session": {
+    "_комментарий": "Рабочие файлы партии. journal_file — журнал терминала для отчёта.",
     "state_dir": "state",
     "state_file": "state/session.json",
     "events_file": "state/events.jsonl",
-    "history_file": "state/chat_history.json"
+    "history_file": "state/chat_history.json",
+    "journal_file": "state/journal.jsonl"
   },
 
   "files": {

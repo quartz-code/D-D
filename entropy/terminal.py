@@ -22,7 +22,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import config, paths, quest as quest_mod, session as session_mod, ui
+from . import (config, features, journal as journal_mod, paths,
+               quest as quest_mod, session as session_mod, ui)
 from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
 
@@ -67,6 +68,7 @@ class TerminalApp:
         self.stages = Stages(config.data_file(self.cfg, "stages"), self.constants)
         self.complex = ComplexMap(config.data_file(self.cfg, "complex"), self.constants)
         self.canned_dir = config.data_file(self.cfg, "canned_dir")
+        self.journal = journal_mod.открыть(self.cfg)
         self.cursor = self.events.size()
 
         root = args.root or self.cfg["terminal"]["sandbox_root"]
@@ -421,28 +423,34 @@ class TerminalApp:
             if not command:
                 continue
             if command.split()[0].lower() in ("мастер", "gm", "master"):
+                self.journal.команда(command, "служебная", этап=self.stage)
                 self.gm_command(command)
                 continue
             try:
                 if self.builtin(command):
+                    self.journal.команда(command, "встроенная", True, self.stage)
                     continue
             except SystemExit:
                 break
             if self.is_blocked(command):
                 self.out("ОТКАЗАНО. Команда запрещена регламентом объекта.")
                 self.note(f"команда заблокирована списком blocked_patterns: {command}")
+                self.journal.команда(command, "отклонена", False, self.stage)
                 continue
             if self.touches_project(command):
                 self.out("ОТКАЗАНО. Обращение к служебному разделу вне вашей формы допуска.")
                 self.note(f"попытка добраться до файлов квеста: {command}")
                 self.events.append("попытка_подсмотреть", команда=command[:200])
+                self.journal.команда(command, "отклонена", False, self.stage)
                 continue
             entry = self.stages.scripted(self.stage, command)
             if entry:
+                self.journal.команда(command, "сценарная", True, self.stage)
                 self.run_scripted(entry)
                 self.maybe_advance(command, True)
                 continue
             success = self.run_real(command)
+            self.journal.команда(command, "настоящая", success, self.stage)
             self.maybe_advance(command, success)
         self.note("терминал закрыт")
         return 0

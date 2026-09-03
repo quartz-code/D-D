@@ -19,7 +19,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import (config, doctor, guard, persona as persona_mod, quest as quest_mod,
+from . import (config, doctor, features, guard, journal as journal_mod,
+               persona as persona_mod, quest as quest_mod,
                session as session_mod, ui)
 from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
@@ -40,6 +41,8 @@ HELP = [
     "статус                           — сводка по партии",
     "журнал [N]                       — последние N событий",
     "проверка [--живой]               — всё ли готово к партии",
+    "отчёт [файл]                     — собрать отчёт о партии в Markdown",
+    "возможности                      — какие дополнения включены",
     "помощь                           — эта справка",
     "выход                            — закрыть пульт",
 ]
@@ -212,6 +215,15 @@ class MasterConsole:
                 print(f"  ● {room}: {action}")
         return 0
 
+    def cmd_report(self, путь: str = "") -> int:
+        """Отчёт о партии из журнала терминала, переписки и событий."""
+        if путь:
+            файл = journal_mod.сохранить(self.cfg, путь)
+            print(ui.c(f"отчёт сохранён: {файл}", "зелёный"))
+        else:
+            print(journal_mod.собрать(self.cfg))
+        return 0
+
     def cmd_doctor(self, живой: bool = False) -> int:
         """Проверка готовности к партии (модуль entropy/doctor.py)."""
         отчёт = doctor.проверить(self.cfg, живой=живой)
@@ -265,6 +277,13 @@ class MasterConsole:
             return self.cmd_status()
         if head == "журнал":
             return self.cmd_log(rest[0] if rest else "15")
+        if head in ("отчёт", "отчет"):
+            return self.cmd_report(rest[0] if rest else "")
+        if head == "возможности":
+            print(ui.box("ДОПОЛНИТЕЛЬНЫЕ ВОЗМОЖНОСТИ",
+                         features.описание_состояния(self.cfg)
+                         + ["", "Изменить: python3 run_launcher.py"], "жёлтый"))
+            return 0
         if head in ("проверка", "готовность"):
             живой = any(a in ("--живой", "--live") for a in rest)
             return self.cmd_doctor(живой)

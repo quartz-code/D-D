@@ -44,6 +44,7 @@ class QuestTestCase(unittest.TestCase):
                 "state_file": str(self.tmp / "state" / "session.json"),
                 "events_file": str(self.tmp / "state" / "events.jsonl"),
                 "history_file": str(self.tmp / "state" / "chat.json"),
+                "journal_file": str(self.tmp / "state" / "journal.jsonl"),
             },
             "terminal": {"sandbox_root": str(self.root)},
             "chat": {"delay_min_sec": 0, "delay_max_sec": 0, "typewriter_cps": 0},
