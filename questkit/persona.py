@@ -2,8 +2,8 @@
 
 Первый уровень ограничения разума — то, что уходит в поле ``system`` запроса:
 рамки характера, запреты и текущее состояние мира. Второй уровень (проверка
-ответа) живёт в :mod:`entropy.guard`, третий (лимит обращений) — в
-:mod:`entropy.chat`.
+ответа) живёт в :mod:`questkit.guard`, третий (лимит обращений) — в
+:mod:`questkit.chat`.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from . import paths, quest as quest_mod
+from . import paths, constants as constants_mod
 
 DEFAULT_ATTITUDE = "настороженное"
 
@@ -22,9 +22,10 @@ class Persona:
     """Характер разума из ``data/persona.json``."""
 
     def __init__(self, path: str | os.PathLike,
-                 constants: "quest_mod.Constants | None" = None):
+                 constants: "constants_mod.Constants | None" = None):
         self.path: Path = paths.resolve(path)
-        self.constants = constants if constants is not None else quest_mod.default()
+        self.constants = (constants if constants is not None
+                          else constants_mod.для_файла(self.path))
         self.data: dict[str, Any] = {}
         self.load()
 
@@ -136,7 +137,7 @@ def build_system_prompt(
 
     parts.append(
         "Ты отыгрываешь персонажа в настольной ролевой игре: "
-        f"{data.get('обозначение', 'служебный распорядитель объекта')}. "
+        f"{data.get('обозначение', 'служебный собеседник объекта')}. "
         "Отвечай всегда по-русски, всегда от первого лица, всегда в роли."
     )
 

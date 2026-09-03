@@ -13,17 +13,16 @@ from pathlib import Path
 #: Корень репозитория (папка, в которой лежат run_*.py).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+#: Служебные данные движка (переводы интерфейса).
 DATA_DIR = PROJECT_ROOT / "data"
 CONFIG_DIR = PROJECT_ROOT / "config"
-CANNED_DIR = DATA_DIR / "canned"
-SCENARIO_DIR = DATA_DIR / "scenario"
+
+#: Пакеты содержимого: пустые шаблоны и готовые примеры.
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
+EXAMPLES_DIR = PROJECT_ROOT / "examples"
 
 CONFIG_FILE = CONFIG_DIR / "config.json"
 CONFIG_EXAMPLE = CONFIG_DIR / "config.example.json"
-
-COMPLEX_FILE = DATA_DIR / "complex.json"
-STAGES_FILE = DATA_DIR / "stages.json"
-PERSONA_FILE = DATA_DIR / "persona.json"
 
 
 def expand(path: str | os.PathLike) -> Path:

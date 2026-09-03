@@ -3,8 +3,8 @@
 import json
 import unittest
 
-from entropy import config
-from entropy.complexctl import (CONFIRM_WORD, ComplexMap, ConfirmationRequired,
+from questkit import config
+from questkit.world import (CONFIRM_WORD, ComplexMap, ConfirmationRequired,
                                 UnknownAction, UnknownRoom)
 
 from .helpers import QuestTestCase
@@ -13,7 +13,7 @@ from .helpers import QuestTestCase
 class TestComplexMap(QuestTestCase):
     def setUp(self):
         super().setUp()
-        self.cmap = ComplexMap(config.data_file(self.load_config(), "complex"))
+        self.cmap = ComplexMap(config.data_file(self.load_config(), "world"))
 
     def test_минимальный_формат_из_тз(self):
         """Формат из ТЗ (комнаты на верхнем уровне) должен читаться как есть."""
@@ -95,19 +95,26 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestШаблонВРепозитории(unittest.TestCase):
-    """Файл возможностей в репозитории должен быть чистым шаблоном.
+class TestПакетыВРепозитории(unittest.TestCase):
+    """Файлы мира в пакетах должны быть чистыми шаблонами.
 
-    Приложение пишет состояние партии прямо в него (так задано в ТЗ), поэтому
+    Приложение пишет состояние партии прямо в них (так задано в ТЗ), поэтому
     после прогонов туда легко попадают «активно», история и отметки времени —
-    и следующий ведущий получит квест с уже применённым газом.
+    и следующий ведущий получит квест с уже применённым действием.
     """
 
-    def test_шаблон_не_содержит_следов_партий(self):
+    def test_ни_один_пакет_не_содержит_следов_партий(self):
         import json
-        from entropy import paths
-        данные = json.loads((paths.DATA_DIR / "complex.json").read_text(encoding="utf-8"))
-        for имя, комната in данные["комнаты"].items():
-            self.assertEqual(комната.get("состояние"), "неактивно", имя)
-            for поле in ("активные_действия", "история", "обновлено"):
-                self.assertNotIn(поле, комната, f"{имя}: осталось поле «{поле}» от прогона")
+        from questkit import paths
+        проверено = 0
+        for каталог in (paths.TEMPLATES_DIR, paths.EXAMPLES_DIR):
+            for файл in каталог.glob("*/world.json"):
+                данные = json.loads(файл.read_text(encoding="utf-8"))
+                for имя, комната in данные["комнаты"].items():
+                    self.assertEqual(комната.get("состояние"), "неактивно",
+                                     f"{файл.parent.name}/{имя}")
+                    for поле in ("активные_действия", "история", "обновлено"):
+                        self.assertNotIn(поле, комната,
+                                         f"{файл.parent.name}/{имя}: осталось «{поле}»")
+                проверено += 1
+        self.assertGreater(проверено, 0, "не найдено ни одного пакета")

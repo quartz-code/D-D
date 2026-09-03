@@ -2,8 +2,8 @@
 
 import unittest
 
-from entropy import config, guard
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
+from questkit import config, guard
+from questkit.world import CONFIRM_WORD, ComplexMap
 
 from .helpers import QuestTestCase
 
@@ -11,7 +11,7 @@ from .helpers import QuestTestCase
 class TestGuard(QuestTestCase):
     def setUp(self):
         super().setUp()
-        self.cmap = ComplexMap(config.data_file(self.load_config(), "complex"))
+        self.cmap = ComplexMap(config.data_file(self.load_config(), "world"))
 
     # ------------------------------------------------ заявления о свершившемся
     def test_неподтверждённое_действие_вырезается(self):
@@ -89,7 +89,7 @@ class TestУстойчивость(QuestTestCase):
     """Пометки ведущему не должны «плавать» от запуска к запуску."""
 
     def test_вырезание_запрещённого_слова_детерминировано(self):
-        from entropy.persona import Persona
+        from questkit.persona import Persona
         persona = Persona(config.data_file(self.load_config(), "persona"))
         первый = guard.check_forbidden("Объект принадлежит объединению «Энтропия».",
                                        persona.forbidden_words, persona.replacement)

@@ -4,10 +4,10 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-from entropy import config
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
-from entropy.seed import Seeder
-from entropy.terminal import TerminalApp, build_parser
+from questkit import config
+from questkit.world import CONFIRM_WORD, ComplexMap
+from questkit.seed import Seeder
+from questkit.terminal import TerminalApp, build_parser
 
 from .helpers import QuestTestCase
 
@@ -15,7 +15,7 @@ from .helpers import QuestTestCase
 class TerminalTestCase(QuestTestCase):
     def setUp(self):
         super().setUp()
-        Seeder(config.data_file(self.load_config(), "scenario"), self.root).seed()
+        Seeder(config.data_file(self.load_config(), "layout"), self.root).seed()
         self.app = self.make_app()
 
     def make_app(self, *extra: str) -> TerminalApp:
@@ -94,7 +94,7 @@ class TestTerminal(TerminalTestCase):
 
     def test_боевой_сигнал_приходит_из_соседнего_окна(self):
         """Раздел 8 ТЗ: подтверждение на пульте — сигнал в окне терминала."""
-        cmap = ComplexMap(config.data_file(self.app.cfg, "complex"))
+        cmap = ComplexMap(config.data_file(self.app.cfg, "world"))
         событие = cmap.apply_action("лаборатория_Б", "открытие_клетки", CONFIRM_WORD)
         self.app.events.append_event(событие)
         вывод = self.capture(self.app.drain_events)
@@ -103,7 +103,7 @@ class TestTerminal(TerminalTestCase):
         self.assertIn("ОТЛОЖИТЕ НОУТБУК", вывод)
 
     def test_небоевое_действие_не_поднимает_тревогу(self):
-        cmap = ComplexMap(config.data_file(self.app.cfg, "complex"))
+        cmap = ComplexMap(config.data_file(self.app.cfg, "world"))
         событие = cmap.apply_action("серверная", "выдача_кода", CONFIRM_WORD)
         self.app.events.append_event(событие)
         вывод = self.capture(self.app.drain_events)

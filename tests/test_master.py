@@ -5,9 +5,9 @@ import unittest
 from contextlib import redirect_stdout
 from unittest import mock
 
-from entropy import config
-from entropy.complexctl import ComplexMap
-from entropy.master import MasterConsole, main
+from questkit import config
+from questkit.world import ComplexMap
+from questkit.master import MasterConsole, main
 
 from .helpers import QuestTestCase
 
@@ -129,7 +129,7 @@ class TestИменаКоманд(MasterTestCase):
 
     def test_каждая_команда_из_справки_отзывается(self):
         """Опечатка в имени команды не должна выясняться посреди партии."""
-        from entropy.master import HELP
+        from questkit.master import HELP
         for строка in HELP:
             имя = строка.split()[0]
             with self.subTest(команда=имя):

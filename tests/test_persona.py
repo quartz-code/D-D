@@ -2,8 +2,8 @@
 
 import unittest
 
-from entropy import config, persona as persona_mod
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
+from questkit import config, persona as persona_mod
+from questkit.world import CONFIRM_WORD, ComplexMap
 
 from .helpers import QuestTestCase
 
@@ -13,7 +13,7 @@ class TestPersona(QuestTestCase):
         super().setUp()
         cfg = self.load_config()
         self.persona = persona_mod.Persona(config.data_file(cfg, "persona"))
-        self.cmap = ComplexMap(config.data_file(cfg, "complex"))
+        self.cmap = ComplexMap(config.data_file(cfg, "world"))
 
     def build(self, **kwargs) -> str:
         kwargs.setdefault("complex_snapshot", self.cmap.snapshot())

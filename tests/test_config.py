@@ -4,7 +4,7 @@ import json
 import os
 import unittest
 
-from entropy import config
+from questkit import config
 
 from .helpers import QuestTestCase
 
@@ -45,7 +45,7 @@ class TestConfig(QuestTestCase):
 
     def test_ключа_нет_в_исходном_коде(self):
         """Ключ не должен быть захардкожен нигде в пакете."""
-        from entropy import paths
+        from questkit import paths
         for path in (paths.PROJECT_ROOT / "entropy").glob("*.py"):
             self.assertNotIn("sk-", path.read_text(encoding="utf-8"),
                              f"похоже на ключ в {path.name}")

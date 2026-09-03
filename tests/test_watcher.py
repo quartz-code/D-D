@@ -5,10 +5,10 @@ import time
 import unittest
 from contextlib import redirect_stdout
 
-from entropy import config, features
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
-from entropy.session import EventLog
-from entropy.watcher import Наблюдатель
+from questkit import config, features
+from questkit.world import CONFIRM_WORD, ComplexMap
+from questkit.session import EventLog
+from questkit.watcher import Наблюдатель
 
 from .helpers import QuestTestCase
 from .test_terminal import TerminalTestCase
@@ -83,7 +83,7 @@ class TestЖивоеОповещениеВТерминале(TerminalTestCase):
         self.assertIsNotNone(self.app.watcher)
 
     def test_выключается_настройкой(self):
-        from entropy.terminal import TerminalApp, build_parser
+        from questkit.terminal import TerminalApp, build_parser
         import json
         данные = json.loads(self.config_path.read_text(encoding="utf-8"))
         данные[features.РАЗДЕЛ] = {"живое_оповещение": False}
@@ -98,7 +98,7 @@ class TestЖивоеОповещениеВТерминале(TerminalTestCase):
                 app = self.make_app()
                 if not живое:
                     app.watcher = None
-                cmap = ComplexMap(config.data_file(app.cfg, "complex"))
+                cmap = ComplexMap(config.data_file(app.cfg, "world"))
                 cmap.reset(CONFIRM_WORD)
                 событие = cmap.apply_action("коридор_3", "газовая_атака", CONFIRM_WORD)
                 app.events.append_event(событие)
@@ -108,7 +108,7 @@ class TestЖивоеОповещениеВТерминале(TerminalTestCase):
     def test_фоновый_поток_печатает_сигнал(self):
         app = self.make_app()
         self.assertIsNotNone(app.watcher)
-        cmap = ComplexMap(config.data_file(app.cfg, "complex"))
+        cmap = ComplexMap(config.data_file(app.cfg, "world"))
         cmap.reset(CONFIRM_WORD)
         событие = cmap.apply_action("лаборатория_Б", "открытие_клетки", CONFIRM_WORD)
         буфер = io.StringIO()

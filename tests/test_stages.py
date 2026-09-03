@@ -3,8 +3,8 @@
 import json
 import unittest
 
-from entropy import config
-from entropy.stages import Stages
+from questkit import config
+from questkit.stages import Stages
 
 from .helpers import QuestTestCase
 

@@ -1,12 +1,12 @@
-"""Приложение-чат с искусственным разумом (разделы 4, 5, 6 ТЗ).
+"""Приложение-чат: переписка с собеседником на языковой модели.
 
 Запуск::
 
     python3 run_chat.py            # обычный режим, нужен ключ DeepSeek
     python3 run_chat.py --офлайн   # репетиция без сети и без расхода бюджета
 
-Приложение НЕ управляет комплексом. Оно только читает файл возможностей,
-чтобы разум знал, чем вправе пугать игроков и что уже подтверждено ведущим.
+Приложение НЕ управляет миром. Оно только читает файл мира, чтобы
+собеседник знал, чем вправе пугать игроков и что уже подтверждено ведущим.
 Изменение состояния делает исключительно пульт ведущего (``run_master.py``).
 """
 
@@ -20,10 +20,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import (config, deepseek, features, guard, persona as persona_mod,
+from . import (config, deepseek, features, guard, pack as pack_mod,
+               persona as persona_mod,
                voice as voice_mod,
-               quest as quest_mod, session as session_mod, ui)
-from .complexctl import ComplexMap
+               constants as constants_mod, session as session_mod, ui)
+from .world import ComplexMap
 from .stages import Stages
 from .watcher import Наблюдатель, печать_поверх_ввода
 
@@ -50,7 +51,7 @@ GM_HELP = [
 
 
 class ChatApp:
-    """Окно переписки с разумом комплекса."""
+    """Окно переписки с собеседником."""
 
     def __init__(self, args: argparse.Namespace):
         self.cfg = config.load(args.config)
@@ -63,10 +64,11 @@ class ChatApp:
         ui.init(self.cfg)
 
         self.session, self.events = session_mod.open_session(self.cfg)
-        self.constants = quest_mod.Constants(config.data_file(self.cfg, "quest"))
+        self.pack = pack_mod.load(self.cfg)
+        self.constants = constants_mod.Constants(config.data_file(self.cfg, "constants"))
         self.stages = Stages(config.data_file(self.cfg, "stages"), self.constants)
         self.persona = persona_mod.Persona(config.data_file(self.cfg, "persona"), self.constants)
-        self.complex = ComplexMap(config.data_file(self.cfg, "complex"), self.constants)
+        self.complex = ComplexMap(config.data_file(self.cfg, "world"), self.constants)
         self.history_path: Path = config.state_file(self.cfg, "history_file")
         self.history: list[dict[str, str]] = []
         self.cursor = self.events.size()
@@ -92,7 +94,13 @@ class ChatApp:
         else:
             self.load_history()
 
-        if not self.session.get("этап"):
+        # Сохранённый этап может остаться от другого пакета содержимого —
+        # тогда справка и переходы просто не работали бы.
+        текущий = self.session.get("этап")
+        if not текущий or not self.stages.exists(текущий):
+            if текущий:
+                ui.gm_note(f"этап «{текущий}» не найден в этом пакете — "
+                           f"партия начата заново")
             self.session.set("этап", self.stages.first())
 
     # ------------------------------------------------------------------ история
@@ -180,7 +188,7 @@ class ChatApp:
         """«Голос комплекса»: моноширинный вывод с задержкой (раздел 4 ТЗ)."""
         print()
         ui.dramatic_pause(self.cfg)
-        print(ui.c("распорядитель>", "зелёный", "жирный"))
+        print(ui.c(self.pack.надпись("chat", "speaker") + ">", "зелёный", "жирный"))
         if self.голос is not None:
             # Речь начинается вместе с печатью, чтобы звук и текст шли рядом.
             self.голос.произнести(text)
@@ -350,7 +358,7 @@ class ChatApp:
         фраза и не пройдёт проверку. Если модель вышла из роли, остаток
         потока отбрасывается — на экране остаётся только проверенное.
         """
-        print(ui.c("распорядитель>", "зелёный", "жирный"))
+        print(ui.c(self.pack.надпись("chat", "speaker") + ">", "зелёный", "жирный"))
         буфер = ""
         показанное: list[str] = []
         заметки: list[str] = []
@@ -535,7 +543,7 @@ class ChatApp:
             self.note("переписки ещё нет")
             return
         for item in self.history[-count:]:
-            who = "вы" if item.get("роль") == "игрок" else "распорядитель"
+            who = "вы" if item.get("роль") == "игрок" else "собеседник"
             style = "белый" if item.get("роль") == "игрок" else "зелёный"
             print(ui.c(f"{item.get('время', '')} {who}> {item.get('текст', '')}", style))
 
@@ -556,7 +564,8 @@ class ChatApp:
     def greet(self) -> None:
         stage = self.session.get("этап")
         lines = [
-            f"канал:      служебная связь объекта ({'офлайн-заглушка' if self.offline else self.cfg['deepseek']['model']})",
+            f"канал:      {self.pack.надпись('chat', 'greeting')} "
+            f"({'офлайн-заглушка' if self.offline else self.cfg['deepseek']['model']})",
             f"этап:       {stage} — {self.stages.title(stage) if stage else ''}",
             f"отношение:  {self.session.get('отношение')}",
             f"лимит:      {self.limit_left()} обращений",
@@ -564,7 +573,7 @@ class ChatApp:
             "Пишите реплику и нажимайте Enter. Команды ведущего начинаются с «/».",
             "«/помощь» — список команд ведущего.",
         ]
-        print(ui.box("СВЯЗЬ С РАСПОРЯДИТЕЛЕМ ОБЪЕКТА", lines, "зелёный"))
+        print(ui.box(self.pack.надпись("chat", "title"), lines, "зелёный"))
         if not self.offline and not config.api_key(self.cfg):
             ui.error("ключ DeepSeek не найден — доступен только режим --офлайн")
 
@@ -600,7 +609,7 @@ class ChatApp:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_chat.py",
-        description="Чат с искусственным разумом «Комплекса Энтропии»",
+        description="Переписка с собеседником квеста",
     )
     parser.add_argument("--конфиг", "--config", dest="config", default=None,
                         help="путь к файлу конфигурации (по умолчанию config/config.json)")

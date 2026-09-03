@@ -4,9 +4,9 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-from entropy import config
-from entropy.chat import ChatApp, build_parser
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
+from questkit import config
+from questkit.chat import ChatApp, build_parser
+from questkit.world import CONFIRM_WORD, ComplexMap
 
 from .helpers import QuestTestCase
 
@@ -73,12 +73,12 @@ class TestChat(ChatTestCase):
         self.assertIn("Регламент соблюдён", реплика)     # остальное предложение цело
         self.assertIn("перехвачено заявление", вывод)    # но ведущий предупреждён
         # и состояние комплекса от этого не изменилось
-        cmap = ComplexMap(config.data_file(app.cfg, "complex"))
+        cmap = ComplexMap(config.data_file(app.cfg, "world"))
         self.assertEqual(cmap.state("коридор_3"), "неактивно")
 
     def test_после_подтверждения_ведущим_то_же_заявление_проходит(self):
         app = self.make_app(reply="Смесь А-7 подана в коридор.")
-        ComplexMap(config.data_file(app.cfg, "complex")).apply_action(
+        ComplexMap(config.data_file(app.cfg, "world")).apply_action(
             "коридор_3", "газовая_атака", CONFIRM_WORD)
         app.complex.load()
         вывод = self.capture(app.send, "Что вы делаете?")
@@ -233,8 +233,8 @@ class TestРазделениеСловИДела(ChatTestCase):
     """Архитектурная проверка раздела 6.2: чат не умеет менять состояние."""
 
     def test_чат_не_вызывает_применение_действий(self):
-        from entropy import chat
-        исходник = (config.paths.PROJECT_ROOT / "entropy" / "chat.py").read_text(encoding="utf-8")
+        from questkit import chat
+        исходник = (config.paths.PROJECT_ROOT / "questkit" / "chat.py").read_text(encoding="utf-8")
         for опасное in ("apply_action", "revert_action", ".reset(", "CONFIRM_WORD"):
             self.assertNotIn(опасное, исходник,
                              f"чат не должен уметь «{опасное}» — это дело пульта ведущего")
@@ -244,11 +244,11 @@ class TestРазделениеСловИДела(ChatTestCase):
         снимок = app.complex.snapshot()
         снимок["комнаты"]["коридор_3"]["состояние"] = "активно"
         self.assertEqual(
-            ComplexMap(config.data_file(app.cfg, "complex")).state("коридор_3"), "неактивно")
+            ComplexMap(config.data_file(app.cfg, "world")).state("коридор_3"), "неактивно")
 
     def test_переписка_не_меняет_файл_возможностей(self):
         app = self.make_app(reply="Я подал газ, открыл клетку и заблокировал все двери.")
-        путь = config.data_file(app.cfg, "complex")
+        путь = config.data_file(app.cfg, "world")
         было = путь.read_text(encoding="utf-8")
         self.capture(app.send, "Что вы сделали?")
         self.assertEqual(путь.read_text(encoding="utf-8"), было)

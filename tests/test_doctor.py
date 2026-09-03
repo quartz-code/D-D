@@ -7,16 +7,16 @@ import unittest
 from contextlib import redirect_stdout
 from unittest import mock
 
-from entropy import config, doctor
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
-from entropy.seed import Seeder
+from questkit import config, doctor
+from questkit.world import CONFIRM_WORD, ComplexMap
+from questkit.seed import Seeder
 
 from .helpers import QuestTestCase
 
 
 class DoctorTestCase(QuestTestCase):
     def разложить(self):
-        Seeder(config.data_file(self.load_config(), "scenario"), self.root).seed()
+        Seeder(config.data_file(self.load_config(), "layout"), self.root).seed()
 
     def строка(self, отчёт, начало):
         for s in отчёт.строки:
@@ -72,7 +72,7 @@ class TestГотовность(DoctorTestCase):
     def test_следы_прошлой_партии(self):
         self.разложить()
         cfg = self.load_config()
-        ComplexMap(config.data_file(cfg, "complex")).apply_action(
+        ComplexMap(config.data_file(cfg, "world")).apply_action(
             "коридор_3", "газовая_атака", CONFIRM_WORD)
         отчёт = doctor.проверить(cfg)
         строка = self.строка(отчёт, "Состояние партии")
@@ -129,7 +129,7 @@ class TestЖиваяПроверка(DoctorTestCase):
 
 class TestВыводОтчёта(DoctorTestCase):
     def test_отчёт_читаемый_и_с_кодом_возврата(self):
-        from entropy.master import main
+        from questkit.master import main
         self.разложить()
         буфер = io.StringIO()
         with redirect_stdout(буфер):
@@ -140,7 +140,7 @@ class TestВыводОтчёта(DoctorTestCase):
         self.assertEqual(код, 0)
 
     def test_код_возврата_при_ошибке(self):
-        from entropy.master import main
+        from questkit.master import main
         буфер = io.StringIO()
         with redirect_stdout(буфер):
             код = main(["--конфиг", str(self.config_path), "проверка"])

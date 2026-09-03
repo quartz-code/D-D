@@ -2,7 +2,7 @@
 
 import unittest
 
-from entropy import session as session_mod
+from questkit import session as session_mod
 
 from .helpers import QuestTestCase
 

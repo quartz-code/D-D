@@ -8,8 +8,8 @@
 Формат файла возможностей — как в ТЗ, по комнате на ключ::
 
     {
-      "коридор_3": {
-        "действия": ["газовая_атака", "блокировка_двери"],
+      "первая_комната": {
+        "действия": ["блокировка_двери", "блокировка_двери"],
         "состояние": "неактивно"
       }
     }
@@ -20,7 +20,7 @@
     {
       "комнаты": { ... то же самое ... },
       "описания_действий": {
-        "газовая_атака": {
+        "блокировка_двери": {
           "описание": "…", "боевое": true,
           "формулировки": ["газ", "клапан"]
         }
@@ -37,7 +37,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import paths, quest as quest_mod
+from . import paths, constants as constants_mod
 
 #: Слово, которое ведущий обязан ввести, чтобы событие применилось.
 CONFIRM_WORD = "ДА"
@@ -66,12 +66,13 @@ class ComplexMap:
     """Файл возможностей комплекса + операции над ним."""
 
     def __init__(self, path: str | os.PathLike,
-                 constants: "quest_mod.Constants | None" = None):
+                 constants: "constants_mod.Constants | None" = None):
         self.path: Path = paths.resolve(path)
         # Этот файл приложение перезаписывает (в нём живёт состояние комнат),
         # поэтому константы подставляются не при загрузке, а при чтении
         # описаний — иначе шаблоны затёрлись бы готовыми значениями.
-        self.constants = constants if constants is not None else quest_mod.default()
+        self.constants = (constants if constants is not None
+                          else constants_mod.для_файла(self.path))
         self.raw: dict[str, Any] = {}
         self.load()
 

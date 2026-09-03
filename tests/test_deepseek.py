@@ -10,7 +10,7 @@ import unittest
 import urllib.error
 from unittest import mock
 
-from entropy import config, deepseek
+from questkit import config, deepseek
 
 from .helpers import QuestTestCase
 

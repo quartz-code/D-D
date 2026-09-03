@@ -116,18 +116,37 @@ class Constants:
 
 
 def load(cfg: dict | None = None) -> Constants:
-    """Константы по пути из конфигурации (или из data/quest.json)."""
+    """Константы активного пакета содержимого."""
     if cfg:
-        return Constants(cfg["files"].get("quest", "data/quest.json"))
-    return Constants(paths.DATA_DIR / "quest.json")
+        from . import config
+        return Constants(config.data_file(cfg, "constants"))
+    return Constants(paths.PROJECT_ROOT / "templates" / "blank-ru" / "constants.json")
+
+
+#: Как называется файл констант внутри пакета содержимого.
+ИМЯ_ФАЙЛА = "constants.json"
+
+
+def для_файла(путь: str | os.PathLike | None) -> Constants:
+    """Константы того же пакета, что и указанный файл данных.
+
+    Подстановка должна работать всегда: если её забыть, шаблон вида
+    ``{{код_двери}}`` уедет прямо в файлы, которые читают игроки. Поэтому
+    объекты, которым константы не передали, берут их у соседа по пакету —
+    ``constants.json`` рядом с самим файлом.
+    """
+    if путь:
+        рядом = paths.resolve(путь).parent / ИМЯ_ФАЙЛА
+        if рядом.exists():
+            try:
+                return Constants(рядом)
+            except (ValueError, OSError):
+                pass
+    return Constants.empty()
 
 
 def default() -> Constants:
-    """Константы по умолчанию для тех, кто не передал их явно.
-
-    Подстановка должна работать всегда: если её забыть, шаблон вида
-    ``{{код_двери}}`` уедет прямо в файлы, которые читают игроки.
-    """
+    """Константы пустого шаблона — последний рубеж, если пакет не найден."""
     try:
         return load()
     except (FileNotFoundError, ValueError):

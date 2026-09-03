@@ -61,11 +61,17 @@
     "journal_file": "state/journal.jsonl"
   },
 
+  "_content_комментарий": "Какой квест играем. Свой: скопируйте templates/blank-ru и укажите путь сюда. Готовый пример: examples/entropy-complex-ru",
+  "content": "examples/entropy-complex-ru",
+
   "files": {
-    "complex": "data/complex.json",
-    "stages": "data/stages.json",
-    "persona": "data/persona.json",
-    "scenario": "data/scenario/default.json",
-    "canned_dir": "data/canned"
+    "_комментарий": "Имена файлов внутри пакета содержимого. Абсолютный путь уводит файл наружу — так можно подменить один файл, не копируя пакет.",
+    "manifest": "pack.json",
+    "constants": "constants.json",
+    "world": "world.json",
+    "stages": "stages.json",
+    "persona": "persona.json",
+    "layout": "layout.json",
+    "canned_dir": "canned"
   }
 }

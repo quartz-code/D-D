@@ -105,7 +105,7 @@ DEFAULTS: dict[str, Any] = {
         "flash_frames": 6,
         "flash_delay_sec": 0.16,
     },
-    # Необязательные возможности (см. entropy/features.py и run_launcher.py).
+    # Необязательные возможности (см. questkit/features.py и run_launcher.py).
     # Базовый квест работает при всех выключенных.
     "features": {
         "журнал_партии": True,
@@ -120,13 +120,20 @@ DEFAULTS: dict[str, Any] = {
         "events_file": "state/events.jsonl",
         "history_file": "state/chat_history.json",
     },
+    # Пакет содержимого — какой квест играем. Внутри лежат все данные:
+    # манифест, константы, мир, этапы, характер собеседника, раскладка файлов
+    # и заготовленные ответы. Свой квест: скопируйте templates/blank-ru.
+    "content": "templates/blank-ru",
+    # Имена файлов внутри пакета. Абсолютный путь уводит файл наружу — так
+    # можно подмешать чужой мир к своим этапам.
     "files": {
-        "quest": "data/quest.json",
-        "complex": "data/complex.json",
-        "stages": "data/stages.json",
-        "persona": "data/persona.json",
-        "scenario": "data/scenario/default.json",
-        "canned_dir": "data/canned",
+        "manifest": "pack.json",
+        "constants": "constants.json",
+        "world": "world.json",
+        "stages": "stages.json",
+        "persona": "persona.json",
+        "layout": "layout.json",
+        "canned_dir": "canned",
     },
 }
 
@@ -193,12 +200,23 @@ def mask_key(key: str) -> str:
     return f"{key[:3]}…{'*' * 6}{key[-4:]}"
 
 
+def content_dir(cfg: dict) -> Path:
+    """Каталог активного пакета содержимого."""
+    return paths.resolve(cfg.get("content") or "templates/blank-ru")
+
+
 def data_file(cfg: dict, name: str) -> Path:
-    """Путь к файлу данных по имени ключа из секции ``files``."""
+    """Путь к файлу данных.
+
+    Относительное имя ищется внутри пакета содержимого, абсолютное берётся
+    как есть — так ведущий может подменить отдельный файл, не копируя пакет.
+    """
     try:
-        return paths.resolve(cfg["files"][name])
+        значение = cfg["files"][name]
     except KeyError as exc:
         raise ConfigError(f"в конфигурации нет files.{name}") from exc
+    путь = paths.expand(значение)
+    return путь if путь.is_absolute() else content_dir(cfg) / путь
 
 
 def state_file(cfg: dict, name: str) -> Path:

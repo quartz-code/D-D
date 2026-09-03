@@ -3,12 +3,12 @@
 import json
 import unittest
 
-from entropy import config
-from entropy.complexctl import ComplexMap
-from entropy.persona import Persona
-from entropy.quest import Constants
-from entropy.seed import Seeder
-from entropy.stages import Stages
+from questkit import config
+from questkit.world import ComplexMap
+from questkit.persona import Persona
+from questkit.constants import Constants
+from questkit.seed import Seeder
+from questkit.stages import Stages
 
 from .helpers import QuestTestCase
 
@@ -29,7 +29,7 @@ class TestКонстанты(QuestTestCase):
         """Иначе игрок увидит в файле «{{код_двери}}» вместо кода."""
         c = self.constants()
         cfg = self.load_config()
-        for имя in ("complex", "stages", "persona", "scenario"):
+        for имя in ("world", "stages", "persona", "layout"):
             данные = json.loads(config.data_file(cfg, имя).read_text(encoding="utf-8"))
             self.assertEqual(c.missing(данные), set(), f"в {имя} есть ссылка без значения")
         for файл in config.data_file(cfg, "canned_dir").glob("*.txt"):
@@ -74,7 +74,7 @@ class TestСменаКода(QuestTestCase):
         self.assertNotIn(self.старый, текст)
 
     def test_разложенные_файлы_содержат_новый_код(self):
-        seeder = Seeder(config.data_file(self.cfg, "scenario"), self.root, self.c)
+        seeder = Seeder(config.data_file(self.cfg, "layout"), self.root, self.c)
         seeder.seed()
         # записка с кодом (строки задом наперёд)
         строки = (self.root / "лаборатория_Б" / "код_внешней_двери.txt").read_text(
@@ -90,8 +90,8 @@ class TestСменаКода(QuestTestCase):
         """Код нарисован пикселями — проверяем, что рисуется именно новый."""
         import struct
         import zlib
-        from entropy.pngtext import render_text
-        seeder = Seeder(config.data_file(self.cfg, "scenario"), self.root, self.c)
+        from questkit.pngtext import render_text
+        seeder = Seeder(config.data_file(self.cfg, "layout"), self.root, self.c)
         seeder.seed()
         данные = (self.root / "архив" / "схема_секции.dat").read_bytes()
         поз, idat = 8, b""
@@ -113,14 +113,14 @@ class TestСменаКода(QuestTestCase):
         self.assertEqual(ширина, ожидаемая, "картинка перерисована под новый код")
 
     def test_разум_прячет_новый_код(self):
-        from entropy import guard
+        from questkit import guard
         persona = Persona(config.data_file(self.cfg, "persona"), self.c)
         текст, заметки = guard.check_secrets(f"Комбинация: {self.НОВЫЙ}.", persona.secrets, set())
         self.assertNotIn(self.НОВЫЙ, текст)
         self.assertTrue(заметки)
 
     def test_шпаргалка_ведущего_с_новым_кодом(self):
-        seeder = Seeder(config.data_file(self.cfg, "scenario"), self.root, self.c)
+        seeder = Seeder(config.data_file(self.cfg, "layout"), self.root, self.c)
         self.assertIn(self.НОВЫЙ, seeder.cheatsheet())
 
     def test_случайный_код_сохраняется_и_расходится(self):

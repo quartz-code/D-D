@@ -9,8 +9,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from entropy import config
-from entropy.seed import MARKER, Seeder
+from questkit import config
+from questkit.seed import MARKER, Seeder
 
 from .helpers import QuestTestCase
 
@@ -18,7 +18,7 @@ from .helpers import QuestTestCase
 class TestSeeder(QuestTestCase):
     def setUp(self):
         super().setUp()
-        self.seeder = Seeder(config.data_file(self.load_config(), "scenario"), self.root)
+        self.seeder = Seeder(config.data_file(self.load_config(), "layout"), self.root)
 
     def test_раскладка_и_проверка(self):
         созданные = self.seeder.seed()
@@ -113,12 +113,12 @@ class TestSeeder(QuestTestCase):
         чужой = self.tmp / "чужой-каталог"
         (чужой / "важное").mkdir(parents=True)
         (чужой / "важное" / "файл.txt").write_text("не трогать", encoding="utf-8")
-        seeder = Seeder(config.data_file(self.load_config(), "scenario"), чужой)
+        seeder = Seeder(config.data_file(self.load_config(), "layout"), чужой)
         self.assertFalse(seeder.wipe(confirmed=True))
         self.assertTrue((чужой / "важное" / "файл.txt").exists())
 
     def test_нельзя_удалить_домашний_каталог(self):
-        seeder = Seeder(config.data_file(self.load_config(), "scenario"), Path.home())
+        seeder = Seeder(config.data_file(self.load_config(), "layout"), Path.home())
         self.assertFalse(seeder.wipe(confirmed=True))
         self.assertTrue(Path.home().exists())
 
@@ -141,8 +141,8 @@ class TestSeedCli(QuestTestCase):
     """Проверка запуска через командную строку."""
 
     def test_разложить_проверить_очистить(self):
-        сценарий = config.data_file(self.load_config(), "scenario")
-        общее = ["python3", "-m", "entropy.seed", "--сценарий", str(сценарий),
+        сценарий = config.data_file(self.load_config(), "layout")
+        общее = ["python3", "-m", "questkit.seed", "--сценарий", str(сценарий),
                  "--корень", str(self.root)]
         for команда, ожидаемый_код in (("разложить", 0), ("проверить", 0)):
             готово = subprocess.run(общее[:3] + [команда] + общее[3:],
@@ -166,12 +166,7 @@ class TestКороткаяРаскладка(QuestTestCase):
     """Второй сценарий: генератор должен быть пригоден не только для одного."""
 
     def сеятель(self):
-        сценарий = self.data / "scenario" / "short.json"
-        if not сценарий.exists():
-            import shutil as sh
-            sh.copy(Path(__file__).resolve().parent.parent / "data" / "scenario" / "short.json",
-                    сценарий)
-        return Seeder(сценарий, self.root, self.constants())
+        return Seeder(self.data / "layout-short.json", self.root, self.constants())
 
     def test_раскладывается_и_проверяется(self):
         seeder = self.сеятель()

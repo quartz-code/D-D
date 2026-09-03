@@ -9,7 +9,7 @@ import subprocess
 import unittest
 from unittest import mock
 
-from entropy import features, voice
+from questkit import features, voice
 
 from .helpers import QuestTestCase
 from .test_chat import ChatTestCase

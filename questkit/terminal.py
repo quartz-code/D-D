@@ -22,9 +22,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import (config, features, journal as journal_mod, paths,
-               quest as quest_mod, session as session_mod, ui)
-from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
+from . import (config, features, journal as journal_mod, pack as pack_mod, paths,
+               constants as constants_mod, session as session_mod, ui)
+from .world import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
 from .watcher import Наблюдатель, печать_поверх_ввода
 
@@ -65,9 +65,10 @@ class TerminalApp:
         ui.init(self.cfg)
 
         self.session, self.events = session_mod.open_session(self.cfg)
-        self.constants = quest_mod.Constants(config.data_file(self.cfg, "quest"))
+        self.pack = pack_mod.load(self.cfg)
+        self.constants = constants_mod.Constants(config.data_file(self.cfg, "constants"))
         self.stages = Stages(config.data_file(self.cfg, "stages"), self.constants)
-        self.complex = ComplexMap(config.data_file(self.cfg, "complex"), self.constants)
+        self.complex = ComplexMap(config.data_file(self.cfg, "world"), self.constants)
         self.canned_dir = config.data_file(self.cfg, "canned_dir")
         self.journal = journal_mod.открыть(self.cfg)
         # Живое оповещение: фоновый поток печатает сигнал сразу, не дожидаясь
@@ -86,7 +87,7 @@ class TerminalApp:
         охраняемое = [
             re.escape(str(paths.PROJECT_ROOT)),
             r"config\.json", r"persona\.json", r"complex\.json", r"stages\.json",
-            r"шпаргалк\w*", r"cheatsheet", r"\bentropy/", r"\bstate/", r"\.git\b",
+            r"шпаргалк\w*", r"cheatsheet", r"\bquestkit/", r"\bstate/", r"\.git\b",
             r"scenario", r"data/canned", r"run_(chat|master|seed|terminal)\.py",
             r"\.квест-энтропия",
         ]
@@ -95,7 +96,13 @@ class TerminalApp:
 
         if args.stage:
             self.session.set("этап", args.stage)
-        if not self.session.get("этап"):
+        # Сохранённый этап может остаться от другого пакета содержимого —
+        # тогда справка и переходы просто не работали бы.
+        текущий = self.session.get("этап")
+        if not текущий or not self.stages.exists(текущий):
+            if текущий:
+                ui.gm_note(f"этап «{текущий}» не найден в этом пакете — "
+                           f"партия начата заново")
             self.session.set("этап", self.stages.first())
 
     # ------------------------------------------------------------------ утилиты
@@ -115,8 +122,8 @@ class TerminalApp:
             location = "~" if str(where) == "." else f"~/{where}"
         except ValueError:
             location = str(self.cwd)
-        объект = self.constants.get("объект", "12-К")
-        return ui.c(f"{объект}:{location}$ ", "зелёный", "жирный")
+        приглашение = self.pack.надпись("terminal", "prompt")
+        return ui.c(f"{приглашение}:{location}$ ", "зелёный", "жирный")
 
     def _живое_событие(self, event: dict[str, Any]) -> None:
         """Обработчик фонового потока: печатает поверх набираемой строки."""
@@ -313,7 +320,7 @@ class TerminalApp:
             try:  # разрешён только корень квеста и всё, что внутри него
                 destination.resolve().relative_to(self.root.resolve())
             except ValueError:
-                self.out("cd: выход за пределы объекта заблокирован распорядителем.")
+                self.out("cd: выход за пределы объекта заблокирован.")
                 self.note("restrict_to_root=true — переход наружу запрещён")
                 return
         self.previous_cwd, self.cwd = self.cwd, destination
@@ -421,16 +428,16 @@ class TerminalApp:
     def greet(self) -> None:
         info = self.stages.info(self.stage)
         lines = [
-            f"Терминал служебного доступа. Объект {self.constants.get('объект', '12-К')}.",
+            self.pack.надпись("terminal", "greeting"),
             "",
             f"этап:     {self.stage} — {info.get('название', '')}",
             f"каталог:  {self.cwd}",
             "",
             "«помощь» — команды, доступные на этом участке.",
-            "«связь»  — выход на голосовой канал распорядителя.",
+            "«связь»  — выход на голосовой канал собеседника.",
             "«выход»  — отключиться.",
         ]
-        print(ui.box(f"КОМПЛЕКС {self.constants.get('объект', '12-К')} · КОНСОЛЬ", lines, "зелёный"))
+        print(ui.box(self.pack.надпись("terminal", "title"), lines, "зелёный"))
         if not self.root.is_dir():
             self.note(f"каталог квеста не найден: {self.root} — разложите файлы: "
                       f"python3 run_seed.py разложить")
@@ -489,7 +496,7 @@ class TerminalApp:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_terminal.py",
-        description="Терминал-приложение квеста «Комплекс Энтропии»",
+        description="Терминал-приложение квеста квеста",
     )
     parser.add_argument("--конфиг", "--config", dest="config", default=None,
                         help="путь к файлу конфигурации")

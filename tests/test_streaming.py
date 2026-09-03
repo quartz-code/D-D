@@ -7,8 +7,8 @@ import urllib.error
 from contextlib import redirect_stdout
 from unittest import mock
 
-from entropy import config, deepseek, features
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
+from questkit import config, deepseek, features
+from questkit.world import CONFIRM_WORD, ComplexMap
 
 from .helpers import QuestTestCase
 from .test_chat import ChatTestCase
@@ -151,7 +151,7 @@ class TestПотокВЧате(ChatTestCase):
 
     def test_после_разрешения_ведущего_код_звучит(self):
         app = self.приложение(["Комбинация двери: 4718."])
-        ComplexMap(config.data_file(app.cfg, "complex")).apply_action(
+        ComplexMap(config.data_file(app.cfg, "world")).apply_action(
             "серверная", "выдача_кода", CONFIRM_WORD)
         app.complex.load()
         вывод = self.capture(app.send, "Назовите код.")

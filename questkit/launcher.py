@@ -25,7 +25,7 @@ import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import config, doctor, features, paths, quest as quest_mod, ui
+from . import config, doctor, features, pack as pack_mod, paths, constants as constants_mod, ui
 
 #: Эмуляторы терминала, в которых можно открыть окна квеста.
 ТЕРМИНАЛЫ = ["x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal",
@@ -36,6 +36,79 @@ from . import config, doctor, features, paths, quest as quest_mod, ui
     "чат": ("run_chat.py", "Чат с разумом"),
     "пульт": ("run_master.py", "Пульт ведущего"),
 }
+
+
+@dataclass
+class Пакет:
+    """Пакет содержимого, найденный в templates/ или examples/."""
+
+    путь: Path
+    название: str
+    язык: str
+    описание: str
+    это_шаблон: bool
+
+    @property
+    def ссылка(self) -> str:
+        """Путь для настройки «content» — относительный, если внутри проекта."""
+        try:
+            return str(self.путь.relative_to(paths.PROJECT_ROOT))
+        except ValueError:
+            return str(self.путь)
+
+
+def найти_пакеты() -> list[Пакет]:
+    """Все пакеты содержимого: сначала шаблоны, потом готовые примеры."""
+    найденные: list[Пакет] = []
+    for каталог, это_шаблон in ((paths.TEMPLATES_DIR, True), (paths.EXAMPLES_DIR, False)):
+        if not каталог.is_dir():
+            continue
+        for место in sorted(каталог.iterdir()):
+            if not (место / "pack.json").exists():
+                continue
+            манифест = pack_mod.Манифест(место / "pack.json")
+            найденные.append(Пакет(место, манифест.name, манифест.language,
+                                   манифест.description, это_шаблон))
+    return найденные
+
+
+def список_пакетов(cfg: dict) -> list[Пакет]:
+    """Пакеты для выбора, включая тот, что уже выбран в настройках.
+
+    Ведущий, скопировавший шаблон в свою папку, играет пакет за пределами
+    templates/ и examples/. Он обязан остаться в списке — иначе окно молча
+    переключило бы его на чужой квест.
+    """
+    найденные = найти_пакеты()
+    текущий = str(cfg.get("content") or "")
+    if текущий and not any(п.ссылка == текущий for п in найденные):
+        место = paths.resolve(текущий)
+        if (место / "pack.json").exists() or место.is_dir():
+            манифест = pack_mod.Манифест(место / "pack.json")
+            найденные.insert(0, Пакет(место, манифест.name, манифест.language,
+                                      манифест.description, False))
+    return найденные
+
+
+def подпись_пакета(пакет: Пакет) -> str:
+    вид = "шаблон" if пакет.это_шаблон else "пример"
+    return f"[{вид} · {пакет.язык}] {пакет.название}  —  {пакет.ссылка}"
+
+
+def выбрать_пакет(пакет: "Пакет | str", путь: str | Path | None = None) -> Path:
+    """Записывает выбранный пакет в настройки."""
+    ссылка = пакет.ссылка if isinstance(пакет, Пакет) else str(пакет)
+    файл = paths.resolve(путь) if путь else путь_конфига()
+    данные: dict = {}
+    if файл.exists():
+        try:
+            данные = json.loads(файл.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            данные = {}
+    данные["content"] = ссылка
+    файл.parent.mkdir(parents=True, exist_ok=True)
+    файл.write_text(json.dumps(данные, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return файл
 
 
 @dataclass
@@ -98,11 +171,11 @@ def сохранить(выбор: dict[str, bool], путь: str | Path | None 
 def разложить(cfg: dict, случайный_код: bool = False) -> str:
     """Раскладывает файлы-головоломки. Возвращает отчёт для показа."""
     from .seed import Seeder
-    константы = quest_mod.Constants(config.data_file(cfg, "quest"))
+    константы = constants_mod.Constants(config.data_file(cfg, "constants"))
     сообщения = []
     if случайный_код:
         сообщения.append(f"код двери на эту партию: {константы.randomize_door_code()}")
-    seeder = Seeder(config.data_file(cfg, "scenario"),
+    seeder = Seeder(config.data_file(cfg, "layout"),
                     cfg["terminal"].get("sandbox_root"), константы)
     созданные = seeder.seed(overwrite=True)
     сообщения.append(f"разложено файлов: {len(созданные)}")
@@ -182,9 +255,12 @@ def текстовое_меню(cfg: dict, путь: Path, ввод=input, вы�
     while True:
         строки = состояние(cfg)
         вывод("")
-        вывод(ui.box("ПОДГОТОВКА ПАРТИИ · «Комплекс Энтропии»", [
-            "Отметьте дополнительные возможности. Базовый квест работает",
-            "и без них.",
+        активный = pack_mod.load(cfg)
+        вывод(ui.box("ПОДГОТОВКА ПАРТИИ", [
+            f"квест:  {активный.name}",
+            f"пакет:  {cfg.get('content')}",
+            "",
+            "Отметьте дополнительные возможности. Квест работает и без них.",
         ], "голубой"))
         for номер, с in enumerate(строки, 1):
             отметка = "[x]" if выбор.get(с.ключ) else "[ ]"
@@ -195,6 +271,7 @@ def текстовое_меню(cfg: dict, путь: Path, ввод=input, вы�
         вывод("")
         вывод("  номер — переключить, с — сохранить, р — разложить файлы,")
         вывод("  к — разложить со случайным кодом, п — проверка готовности,")
+        вывод("  и — сменить квест (пакет содержимого),")
         вывод("  о — открыть окна квеста, в — выход")
         try:
             ответ = str(ввод("выбор> ")).strip().lower()
@@ -219,6 +296,25 @@ def текстовое_меню(cfg: dict, путь: Path, ввод=input, вы�
         elif ответ in ("п", "проверка", "p"):
             _, текст = проверка(cfg)
             вывод(текст)
+        elif ответ in ("и", "квест", "пакет"):
+            пакеты = список_пакетов(cfg)
+            if not пакеты:
+                вывод("  пакетов не найдено")
+                continue
+            for номер, п in enumerate(пакеты, 1):
+                отметка = " ← сейчас" if п.ссылка == str(cfg.get("content", "")) else ""
+                вывод(f"  {номер}. {подпись_пакета(п)}{отметка}")
+            try:
+                выбранный = str(ввод("какой пакет> ")).strip()
+            except (EOFError, KeyboardInterrupt):
+                continue
+            if выбранный.isdigit() and 1 <= int(выбранный) <= len(пакеты):
+                файл = выбрать_пакет(пакеты[int(выбранный) - 1], путь)
+                cfg = config.load(файл)
+                выбор = {с.ключ: с.включена for с in состояние(cfg)}
+                вывод(f"  квест: {pack_mod.load(cfg).name}")
+            else:
+                вывод("  не понял номер")
         elif ответ in ("о", "окна", "o"):
             _, пояснение = открыть_окна()
             вывод(пояснение)
@@ -242,7 +338,7 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
             "или запустите текстовое меню: python3 run_launcher.py --текст")
 
     окно = tk.Tk()
-    окно.title("Комплекс Энтропии — подготовка партии")
+    окно.title(f"{pack_mod.load(cfg).name} — подготовка партии")
     окно.geometry("760x680")
     окно.minsize(640, 520)
 
@@ -251,6 +347,21 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
     заголовок.pack(anchor="w", padx=16, pady=(14, 2))
     ttk.Label(окно, text="Отметьте, что включить. Базовый квест работает и без "
                          "дополнений.", foreground="#555").pack(anchor="w", padx=16)
+
+    выбор_пакета = ttk.LabelFrame(окно, text="Какой квест играем")
+    выбор_пакета.pack(fill="x", padx=16, pady=(12, 0))
+    пакеты = список_пакетов(cfg)
+    текущий = str(cfg.get("content", ""))
+    подписи = [подпись_пакета(п) for п in пакеты]
+    переменная_пакета = tk.StringVar(
+        value=next((п for п, с in zip(подписи, пакеты) if с.ссылка == текущий),
+                   подписи[0] if подписи else текущий))
+    поле = ttk.Combobox(выбор_пакета, values=подписи, textvariable=переменная_пакета,
+                        state="readonly", width=70)
+    поле.pack(anchor="w", padx=10, pady=8)
+    ttk.Label(выбор_пакета, text="Свой квест: скопируйте templates/blank-ru в свою папку "
+                                 "и выберите её здесь.", foreground="#555",
+              wraplength=680, justify="left").pack(anchor="w", padx=10, pady=(0, 8))
 
     рамка = ttk.LabelFrame(окно, text="Дополнительные возможности")
     рамка.pack(fill="x", padx=16, pady=12)
@@ -284,7 +395,18 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
     def текущий_выбор() -> dict[str, bool]:
         return {к: п.get() for к, п in переменные.items()}
 
+    def выбранный_пакет() -> "Пакет | None":
+        подпись = переменная_пакета.get()
+        for п, с in zip(подписи, пакеты):
+            if п == подпись:
+                return с
+        return None
+
     def действие_сохранить() -> dict:
+        пакет = выбранный_пакет()
+        if пакет is not None and пакет.ссылка != str(config.load(путь).get("content", "")):
+            выбрать_пакет(пакет, путь)
+            печать(f"Квест: {пакет.название} ({пакет.ссылка})")
         файл = сохранить(текущий_выбор(), путь)
         печать(f"Настройки сохранены: {файл}")
         return config.load(файл)

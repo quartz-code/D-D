@@ -20,7 +20,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from . import config, deepseek, quest as quest_mod, session as session_mod, ui
+from . import config, deepseek, constants as constants_mod, session as session_mod, ui
 
 ОК, ПРЕДУПРЕЖДЕНИЕ, ОШИБКА = "ок", "внимание", "ошибка"
 
@@ -118,7 +118,7 @@ def проверить_конфигурацию(отчёт: Отчёт, cfg: dic
 
 
 def проверить_данные(отчёт: Отчёт, cfg: dict) -> None:
-    for имя in ("quest", "complex", "stages", "persona", "scenario"):
+    for имя in ("constants", "world", "stages", "persona", "layout"):
         путь = config.data_file(cfg, имя)
         if not путь.exists():
             отчёт.добавить(f"Файл данных «{имя}»", ОШИБКА, f"{путь} не найден")
@@ -135,13 +135,13 @@ def проверить_данные(отчёт: Отчёт, cfg: dict) -> None:
 def проверить_константы(отчёт: Отчёт, cfg: dict) -> None:
     """Ищет ссылки {{имя}}, которым не нашлось значения."""
     try:
-        константы = quest_mod.Constants(config.data_file(cfg, "quest"))
+        константы = constants_mod.Constants(config.data_file(cfg, "constants"))
     except (FileNotFoundError, ValueError) as ошибка:
         отчёт.добавить("Константы квеста", ОШИБКА, str(ошибка))
         return
 
     потерянные: set[str] = set()
-    for имя in ("complex", "stages", "persona", "scenario"):
+    for имя in ("world", "stages", "persona", "layout"):
         путь = config.data_file(cfg, имя)
         if путь.exists():
             try:
@@ -193,7 +193,7 @@ def проверить_заготовки(отчёт: Отчёт, cfg: dict) -> 
 def проверить_раскладку(отчёт: Отчёт, cfg: dict) -> None:
     from .seed import Seeder
     try:
-        seeder = Seeder(config.data_file(cfg, "scenario"),
+        seeder = Seeder(config.data_file(cfg, "layout"),
                         cfg["terminal"].get("sandbox_root"))
     except (FileNotFoundError, json.JSONDecodeError) as ошибка:
         отчёт.добавить("Раскладка файлов", ОШИБКА, str(ошибка))
@@ -212,13 +212,13 @@ def проверить_раскладку(отчёт: Отчёт, cfg: dict) -> 
 
 
 def проверить_состояние(отчёт: Отчёт, cfg: dict) -> None:
-    from .complexctl import ComplexMap
+    from .world import ComplexMap
     сессия, журнал = session_mod.open_session(cfg)
     данные = сессия.load()
     израсходовано = int(данные.get("сообщений_израсходовано", 0) or 0)
 
     try:
-        карта = ComplexMap(config.data_file(cfg, "complex"))
+        карта = ComplexMap(config.data_file(cfg, "world"))
         применённые = карта.all_active()
     except (FileNotFoundError, ValueError):
         применённые = []

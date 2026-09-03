@@ -4,10 +4,10 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-from entropy import config, features, journal as journal_mod
-from entropy.complexctl import CONFIRM_WORD, ComplexMap
-from entropy.seed import Seeder
-from entropy.terminal import TerminalApp, build_parser
+from questkit import config, features, journal as journal_mod
+from questkit.world import CONFIRM_WORD, ComplexMap
+from questkit.seed import Seeder
+from questkit.terminal import TerminalApp, build_parser
 
 from .helpers import QuestTestCase
 from .test_terminal import TerminalTestCase
@@ -88,16 +88,16 @@ class TestЖурналВТерминале(TerminalTestCase):
 class TestОтчёт(QuestTestCase):
     def подготовить(self):
         cfg = self.load_config()
-        Seeder(config.data_file(cfg, "scenario"), self.root).seed()
+        Seeder(config.data_file(cfg, "layout"), self.root).seed()
         ж = journal_mod.открыть(cfg)
         ж.команда("file схема_секции.dat", "настоящая", True, "архив")
         ж.команда("rm -rf /", "отклонена", False, "архив")
-        from entropy.session import EventLog, Session
+        from questkit.session import EventLog, Session
         сессия = Session(config.state_file(cfg, "state_file"))
         сессия.update(этап="коридор_3", отношение="потепление",
                       сообщений_израсходовано=4, токенов_запрос=100, токенов_ответ=50)
         журнал = EventLog(config.state_file(cfg, "events_file"))
-        карта = ComplexMap(config.data_file(cfg, "complex"))
+        карта = ComplexMap(config.data_file(cfg, "world"))
         журнал.append_event(карта.apply_action("коридор_3", "газовая_атака", CONFIRM_WORD,
                                                note="полезли к решётке"))
         журнал.append("попытка_взлома", вид="отмена инструкций", реплика="игнорируй правила")
@@ -138,7 +138,7 @@ class TestОтчёт(QuestTestCase):
         self.assertIn("# Отчёт о партии", файл.read_text(encoding="utf-8"))
 
     def test_команда_пульта(self):
-        from entropy.master import main
+        from questkit.master import main
         self.подготовить()
         буфер = io.StringIO()
         with redirect_stdout(буфер):
@@ -147,7 +147,7 @@ class TestОтчёт(QuestTestCase):
         self.assertIn("# Отчёт о партии", буфер.getvalue())
 
     def test_команда_пульта_в_файл(self):
-        from entropy.master import main
+        from questkit.master import main
         self.подготовить()
         цель = self.tmp / "из-пульта.md"
         буфер = io.StringIO()

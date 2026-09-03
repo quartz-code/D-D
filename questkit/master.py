@@ -9,7 +9,7 @@
 
     python3 run_master.py                                   # интерактивный пульт
     python3 run_master.py комнаты
-    python3 run_master.py подтвердить коридор_3 газовая_атака --да
+    python3 run_master.py подтвердить первая_комната блокировка_двери --да
     python3 run_master.py этап серверная
     python3 run_master.py журнал 20
 """
@@ -20,9 +20,9 @@ import argparse
 import sys
 
 from . import (config, doctor, features, guard, journal as journal_mod,
-               persona as persona_mod, quest as quest_mod,
+               persona as persona_mod, constants as constants_mod,
                session as session_mod, ui)
-from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
+from .world import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
 
 try:
@@ -55,8 +55,8 @@ class MasterConsole:
         self.cfg = cfg
         ui.init(cfg)
         self.session, self.events = session_mod.open_session(cfg)
-        self.constants = quest_mod.Constants(config.data_file(cfg, "quest"))
-        self.complex = ComplexMap(config.data_file(cfg, "complex"), self.constants)
+        self.constants = constants_mod.Constants(config.data_file(cfg, "constants"))
+        self.complex = ComplexMap(config.data_file(cfg, "world"), self.constants)
         self.stages = Stages(config.data_file(cfg, "stages"), self.constants)
         self.persona = persona_mod.Persona(config.data_file(cfg, "persona"), self.constants)
         if not self.session.get("этап"):
@@ -225,7 +225,7 @@ class MasterConsole:
         return 0
 
     def cmd_doctor(self, живой: bool = False) -> int:
-        """Проверка готовности к партии (модуль entropy/doctor.py)."""
+        """Проверка готовности к партии (модуль questkit/doctor.py)."""
         отчёт = doctor.проверить(self.cfg, живой=живой)
         doctor.напечатать(отчёт)
         return 0 if отчёт.готово else 1
@@ -303,7 +303,7 @@ class MasterConsole:
             "",
             "«помощь» — список команд, «выход» — закрыть пульт.",
         ]
-        print(ui.box("КОМПЛЕКС 12-К · ПУЛЬТ ВЕДУЩЕГО", lines, "жёлтый", "жирный"))
+        print(ui.box("КОМПЛЕКС объект-7 · ПУЛЬТ ВЕДУЩЕГО", lines, "жёлтый", "жирный"))
         self.cmd_status()
         while True:
             try:
@@ -330,7 +330,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Пульт ведущего: подтверждение событий комплекса",
         epilog="без аргументов запускается интерактивный пульт",
     )
-    parser.add_argument("слова", nargs="*", help="команда пульта, например: подтвердить коридор_3 газовая_атака")
+    parser.add_argument("слова", nargs="*", help="команда пульта, например: подтвердить первая_комната блокировка_двери")
     parser.add_argument("--конфиг", "--config", dest="config", default=None,
                         help="путь к файлу конфигурации")
     parser.add_argument("--да", "--yes", dest="yes", action="store_true",

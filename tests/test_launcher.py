@@ -10,7 +10,7 @@ import subprocess
 import unittest
 from unittest import mock
 
-from entropy import config, features, launcher
+from questkit import config, features, launcher
 
 from .helpers import QuestTestCase
 
@@ -43,7 +43,7 @@ class TestСостояние(QuestTestCase):
         self.assertTrue(по_ключу["потоковый_ответ"].включена)
 
     def test_недоступная_возможность_помечена(self):
-        from entropy import voice
+        from questkit import voice
         with mock.patch.object(voice.shutil, "which", return_value=None):
             по_ключу = {с.ключ: с for с in launcher.состояние(self.load_config())}
         self.assertFalse(по_ключу["озвучка"].доступна)
@@ -169,7 +169,7 @@ class TestТекстовоеМеню(QuestTestCase):
         self.assertTrue(данные[features.РАЗДЕЛ]["потоковый_ответ"])
 
     def test_недоступную_включить_нельзя(self):
-        from entropy import voice
+        from questkit import voice
         with mock.patch.object(voice.shutil, "which", return_value=None):
             код, вывод, путь = self.меню(["4", "в"])
         данные = json.loads(путь.read_text(encoding="utf-8"))
@@ -178,7 +178,7 @@ class TestТекстовоеМеню(QuestTestCase):
 
     def test_выключить_можно_и_недоступную(self):
         """Если она была включена раньше — снять галочку должно быть можно."""
-        from entropy import voice
+        from questkit import voice
         путь = self.tmp / "config.json"
         launcher.сохранить({"озвучка": True}, путь)
         напечатанное = []
@@ -243,6 +243,8 @@ class ПоддельныйTk:
         self.кнопки = []
         self.галочки = []
         self.переменные = []
+        self.строковые = []
+        self.списки = []
         внешний = self
 
         class Переменная:
@@ -255,6 +257,19 @@ class ПоддельныйTk:
 
             def set(self, значение):
                 self._значение = bool(значение)
+
+        class Строковая:
+            """StringVar: держит подпись выбранного пакета содержимого."""
+
+            def __init__(self, value=""):
+                self._значение = str(value)
+                внешний.строковые.append(self)
+
+            def get(self):
+                return self._значение
+
+            def set(self, значение):
+                self._значение = str(значение)
 
         class Виджет:
             """Любой виджет: принимает что угодно, ничего не делает."""
@@ -273,16 +288,22 @@ class ПоддельныйTk:
             внешний.галочки.append(kwargs)
             return Виджет()
 
+        def список(*args, **kwargs):
+            внешний.списки.append(kwargs)
+            return Виджет()
+
         self.окно = mock.MagicMock(name="Tk")
         tkinter = types.ModuleType("tkinter")
         tkinter.Tk = mock.Mock(return_value=self.окно)
         tkinter.BooleanVar = Переменная
+        tkinter.StringVar = Строковая
         ttk = types.ModuleType("tkinter.ttk")
         ttk.Label = Виджет
         ttk.LabelFrame = Виджет
         ttk.Frame = Виджет
         ttk.Checkbutton = галочка
         ttk.Button = кнопка
+        ttk.Combobox = список
         scrolledtext = types.ModuleType("tkinter.scrolledtext")
         scrolledtext.ScrolledText = Виджет
         tkinter.ttk = ttk
@@ -356,7 +377,7 @@ class TestОкно(QuestTestCase):
         запуск.assert_called_once()
 
     def test_недоступная_возможность_не_отмечается_сама(self):
-        from entropy import voice
+        from questkit import voice
         подделка = ПоддельныйTk()
         путь = self.tmp / "config.json"
         launcher.сохранить({"озвучка": True}, путь)
@@ -367,3 +388,19 @@ class TestОкно(QuestTestCase):
         данные = json.loads(путь.read_text(encoding="utf-8"))
         self.assertFalse(данные[features.РАЗДЕЛ]["озвучка"],
                          "включённую, но недоступную возможность окно снимает")
+
+    def test_в_окне_есть_выбор_квеста(self):
+        подделка, _ = self.окно()
+        self.assertTrue(подделка.списки, "в окне нет выпадающего списка пакетов")
+        подписи = подделка.списки[0].get("values") or []
+        self.assertTrue(any("Комплекс Энтропии" in п for п in подписи))
+        self.assertTrue(any("шаблон" in п for п in подписи))
+
+    def test_смена_квеста_в_окне_сохраняется(self):
+        подделка, путь = self.окно()
+        подписи = подделка.списки[0]["values"]
+        шаблон = next(п for п in подписи if "шаблон" in п)
+        подделка.строковые[0].set(шаблон)
+        подделка.нажать("Сохранить и закрыть")
+        данные = json.loads(путь.read_text(encoding="utf-8"))
+        self.assertIn("blank", данные["content"])

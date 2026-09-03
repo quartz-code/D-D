@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from . import config, paths, quest as quest_mod, ui
+from . import config, paths, constants as constants_mod, ui
 from .pngtext import write_png
 
 #: Файл-маркер в корне раскладки: без него «очистить» ничего не удаляет.
@@ -139,11 +139,12 @@ class Seeder:
     """Раскладка файлов-головоломок по сценарию."""
 
     def __init__(self, scenario_path: str | os.PathLike, root: str | os.PathLike | None = None,
-                 constants: "quest_mod.Constants | None" = None):
+                 constants: "constants_mod.Constants | None" = None):
         self.path = paths.resolve(scenario_path)
         if not self.path.exists():
             raise FileNotFoundError(f"файл сценария не найден: {self.path}")
-        self.constants = constants if constants is not None else quest_mod.default()
+        self.constants = (constants if constants is not None
+                          else constants_mod.для_файла(self.path))
         сырое = json.loads(self.path.read_text(encoding="utf-8"))
         self.scenario: dict[str, Any] = self.constants.render(сырое)
         self.root = paths.expand(root or self.scenario.get("корень", "~/комплекс"))
@@ -276,14 +277,14 @@ class Seeder:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_seed.py",
-        description="Раскладка файлов-головоломок для квеста «Комплекс Энтропии»",
+        description="Раскладка файлов-головоломок для квеста квеста",
     )
     parser.add_argument("команда", nargs="?", default="разложить",
                         choices=["разложить", "проверить", "очистить", "шпаргалка", "список"],
                         help="что сделать (по умолчанию: разложить)")
     parser.add_argument("--конфиг", "--config", dest="config", default=None)
-    parser.add_argument("--сценарий", "--scenario", dest="scenario", default=None,
-                        help="файл сценария (по умолчанию data/scenario/default.json)")
+    parser.add_argument("--раскладка", "--сценарий", "--layout", dest="layout", default=None,
+                        help="файл раскладки (по умолчанию layout.json активного пакета)")
     parser.add_argument("--корень", "--root", dest="root", default=None,
                         help="куда раскладывать (перебивает «корень» из сценария)")
     parser.add_argument("--перезаписать", "--overwrite", dest="overwrite", action="store_true",
@@ -302,13 +303,17 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     cfg = config.load(args.config)
     ui.init(cfg)
-    scenario = args.scenario or cfg["files"]["scenario"]
-    константы = quest_mod.Constants(config.data_file(cfg, "quest"))
+    # Раскладка ищется внутри активного пакета, если путь не задан явно.
+    scenario = args.layout or config.data_file(cfg, "layout")
+    константы = constants_mod.Constants(config.data_file(cfg, "constants"))
     if args.random_code and args.команда == "разложить":
         новый = константы.randomize_door_code()
         print(ui.c(f"код двери на эту партию: {новый}", "жёлтый", "жирный"))
+    # Куда раскладывать: ключ командной строки, затем sandbox_root из
+    # настроек (там же начинают игроки), и лишь потом «корень» из раскладки.
+    корень = args.root or cfg["terminal"].get("sandbox_root")
     try:
-        seeder = Seeder(scenario, args.root, константы)
+        seeder = Seeder(scenario, корень, константы)
     except (FileNotFoundError, json.JSONDecodeError) as exc:
         ui.error(str(exc))
         return 2

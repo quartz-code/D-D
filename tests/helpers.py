@@ -8,9 +8,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from entropy import paths
+from questkit import paths
 
-DATA = paths.DATA_DIR
+ПРИМЕР = paths.EXAMPLES_DIR / "entropy-complex-ru"
 
 
 class QuestTestCase(unittest.TestCase):
@@ -20,25 +20,15 @@ class QuestTestCase(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="энтропия-тест-"))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
 
-        self.data = self.tmp / "data"
-        self.data.mkdir()
-        for name in ("complex.json", "stages.json", "persona.json", "quest.json"):
-            shutil.copy(DATA / name, self.data / name)
-        shutil.copytree(DATA / "canned", self.data / "canned")
-        (self.data / "scenario").mkdir()
-        shutil.copy(DATA / "scenario" / "default.json", self.data / "scenario" / "default.json")
+        # Пакет содержимого целиком копируется во временный каталог: тесты
+        # не должны трогать пакеты в репозитории.
+        self.data = self.tmp / "pack"
+        shutil.copytree(ПРИМЕР, self.data)
 
         self.root = self.tmp / "квест"
         self.config_path = self.tmp / "config.json"
         self.config_path.write_text(json.dumps({
-            "files": {
-                "quest": str(self.data / "quest.json"),
-                "complex": str(self.data / "complex.json"),
-                "stages": str(self.data / "stages.json"),
-                "persona": str(self.data / "persona.json"),
-                "scenario": str(self.data / "scenario" / "default.json"),
-                "canned_dir": str(self.data / "canned"),
-            },
+            "content": str(self.data),
             "session": {
                 "state_dir": str(self.tmp / "state"),
                 "state_file": str(self.tmp / "state" / "session.json"),
@@ -54,14 +44,14 @@ class QuestTestCase(unittest.TestCase):
 
         # Файл возможностей в репозитории мог остаться после прошлой партии —
         # тесты всегда начинают с «неактивно».
-        from entropy.complexctl import CONFIRM_WORD, ComplexMap
-        ComplexMap(self.data / "complex.json").reset(CONFIRM_WORD)
+        from questkit.world import CONFIRM_WORD, ComplexMap
+        ComplexMap(self.data / "world.json").reset(CONFIRM_WORD)
 
     def load_config(self) -> dict:
-        from entropy import config
+        from questkit import config
         return config.load(self.config_path)
 
     def constants(self):
-        """Константы квеста из временной копии данных."""
-        from entropy.quest import Constants
-        return Constants(self.data / "quest.json")
+        """Константы квеста из временной копии пакета."""
+        from questkit.constants import Constants
+        return Constants(self.data / "constants.json")

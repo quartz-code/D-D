@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import paths, quest as quest_mod, ui
+from . import paths, constants as constants_mod, ui
 
 #: Команды, чтение файла которыми считается «нашёл и прочитал».
 READ_COMMANDS = (
@@ -29,9 +29,10 @@ class Stages:
     """Карта этапов из ``data/stages.json``."""
 
     def __init__(self, path: str | os.PathLike,
-                 constants: "quest_mod.Constants | None" = None):
+                 constants: "constants_mod.Constants | None" = None):
         self.path: Path = paths.resolve(path)
-        self.constants = constants if constants is not None else quest_mod.default()
+        self.constants = (constants if constants is not None
+                          else constants_mod.для_файла(self.path))
         self.data: dict[str, Any] = {}
         self.load()
 
