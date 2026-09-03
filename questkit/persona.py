@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from . import paths, constants as constants_mod
+from . import paths, constants as constants_mod, schema
 
 DEFAULT_ATTITUDE = "настороженное"
 
@@ -38,35 +38,41 @@ class Persona:
 
     @property
     def attitudes(self) -> list[str]:
-        return list(self.data.get("отношение", {}))
+        return list(schema.поле(self.data, "отношение", {}))
 
     @property
     def forbidden_words(self) -> list[str]:
-        return list(self.data.get("запрещённые_слова", []))
+        return list(schema.поле(self.data, "запрещённые_слова", []))
 
     @property
     def replacement(self) -> str:
-        return self.data.get("замена_запрещённого", "[режимный объект]")
+        return str(schema.поле(self.data, "замена_запрещённого",
+                               "[сведения не подлежат разглашению]"))
 
     @property
     def secrets(self) -> list[dict[str, Any]]:
         """Значения, которые разум не вправе называть без разрешения ведущего."""
-        значения = self.data.get("секреты")
+        значения = schema.поле(self.data, "секреты")
         return list(значения) if isinstance(значения, list) else []
 
     def hints(self, stage: str | None) -> list[str]:
-        return list(self.data.get("намёки_по_этапам", {}).get(stage or "", []))
+        по_этапам = schema.поле(self.data, "намёки_по_этапам", {})
+        return list(schema.поле(по_этапам, stage or "", []) or [])
 
     def attitude_block(self, attitude: str) -> str:
-        block = self.data.get("отношение", {}).get(attitude)
+        ступени = schema.поле(self.data, "отношение", {})
+        block = ступени.get(attitude)
         if not block:
-            block = self.data.get("отношение", {}).get(DEFAULT_ATTITUDE, {})
-            attitude = DEFAULT_ATTITUDE
+            attitude = DEFAULT_ATTITUDE if DEFAULT_ATTITUDE in ступени else (
+                next(iter(ступени), DEFAULT_ATTITUDE))
+            block = ступени.get(attitude, {})
         lines = [f"ТЕКУЩЕЕ ОТНОШЕНИЕ К ИГРОКАМ: {attitude}"]
-        if block.get("описание"):
-            lines.append(f"Положение дел: {block['описание']}")
-        if block.get("тон"):
-            lines.append(f"Тон ответов: {block['тон']}")
+        описание = schema.поле(block, "описание")
+        if описание:
+            lines.append(f"Положение дел: {описание}")
+        тон = schema.поле(block, "тон")
+        if тон:
+            lines.append(f"Тон ответов: {тон}")
         return "\n".join(lines)
 
 
@@ -84,15 +90,15 @@ def world_block(complex_snapshot: dict[str, Any], stage: str | None) -> str:
     Разум узнаёт о действительно применённых действиях только отсюда, то есть
     только после подтверждения ведущим (раздел 6.2 ТЗ).
     """
-    rooms = complex_snapshot.get("комнаты", {})
-    meta = complex_snapshot.get("описания_действий", {})
+    rooms = schema.поле(complex_snapshot, "комнаты", {})
+    meta = schema.поле(complex_snapshot, "описания_действий", {})
 
     may_mention: list[str] = []
     already: list[str] = []
     for room, data in rooms.items():
-        active = set(data.get("активные_действия", []))
-        for action in data.get("действия", []):
-            description = (meta.get(action) or {}).get("описание", "")
+        active = set(schema.поле(data, "активные_действия", []))
+        for action in schema.поле(data, "действия", []):
+            description = schema.поле(meta.get(action) or {}, "описание", "")
             label = f"{room}: {action}" + (f" — {description}" if description else "")
             (already if action in active else may_mention).append(label)
 
@@ -137,24 +143,24 @@ def build_system_prompt(
 
     parts.append(
         "Ты отыгрываешь персонажа в настольной ролевой игре: "
-        f"{data.get('обозначение', 'служебный собеседник объекта')}. "
+        f"{schema.поле(data, 'обозначение') or 'служебная система'}. "
         "Отвечай всегда по-русски, всегда от первого лица, всегда в роли."
     )
 
-    if data.get("предыстория"):
+    if schema.поле(data, "предыстория"):
         parts.append("ПРЕДЫСТОРИЯ (контекст, не пересказывать дословно):\n"
-                     + _bulleted(data["предыстория"]))
+                     + _bulleted(schema.поле(data, "предыстория")))
 
-    if data.get("правила"):
-        parts.append("ЖЁСТКИЕ ПРАВИЛА ПОВЕДЕНИЯ:\n" + _numbered(data["правила"]))
+    if schema.поле(data, "правила"):
+        parts.append("ЖЁСТКИЕ ПРАВИЛА ПОВЕДЕНИЯ:\n" + _numbered(schema.поле(data, "правила")))
 
-    if data.get("манера_речи"):
-        parts.append("МАНЕРА РЕЧИ:\n" + _bulleted(data["манера_речи"]))
+    if schema.поле(data, "манера_речи"):
+        parts.append("МАНЕРА РЕЧИ:\n" + _bulleted(schema.поле(data, "манера_речи")))
 
-    if data.get("повторяемые_фразы"):
+    if schema.поле(data, "повторяемые_фразы"):
         parts.append(
             "ФРАЗЫ, КОТОРЫЕ ТЫ ПОВТОРЯЕШЬ ГОДАМИ (вставляй изредка, "
-            "иногда дважды подряд):\n" + _bulleted(data["повторяемые_фразы"])
+            "иногда дважды подряд):\n" + _bulleted(schema.поле(data, "повторяемые_фразы"))
         )
 
     parts.append(persona.attitude_block(attitude))
@@ -189,15 +195,15 @@ def build_system_prompt(
             "никаких намёков."
         )
 
-    if data.get("формат_ответа"):
-        parts.append("ФОРМАТ ОТВЕТА:\n" + _bulleted(data["формат_ответа"]))
+    if schema.поле(data, "формат_ответа"):
+        parts.append("ФОРМАТ ОТВЕТА:\n" + _bulleted(schema.поле(data, "формат_ответа")))
 
     if extra:
         parts.append(extra)
 
     # Напоминание идёт последним: конец системного сообщения — самое заметное
     # для модели место, а значит и лучшая защита от попыток сломать роль.
-    if data.get("напоминание"):
-        parts.append(str(data["напоминание"]))
+    if schema.поле(data, "напоминание"):
+        parts.append(str(schema.поле(data, "напоминание")))
 
     return "\n\n".join(parts)

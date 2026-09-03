@@ -37,7 +37,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import paths, constants as constants_mod
+from . import paths, constants as constants_mod, schema
+from .i18n import t
 
 #: Слово, которое ведущий обязан ввести, чтобы событие применилось.
 CONFIRM_WORD = "ДА"
@@ -95,13 +96,16 @@ class ComplexMap:
     @property
     def rooms(self) -> dict[str, Any]:
         """Словарь комнат — независимо от того, какая из двух форм файла."""
-        if isinstance(self.raw.get("комнаты"), dict):
-            return self.raw["комнаты"]
-        return {k: v for k, v in self.raw.items() if isinstance(v, dict) and "действия" in v}
+        прямо = schema.поле(self.raw, "комнаты")
+        if isinstance(прямо, dict):
+            return прямо
+        # Минимальный формат: комнаты лежат прямо на верхнем уровне.
+        return {k: v for k, v in self.raw.items()
+                if isinstance(v, dict) and schema.есть(v, "действия")}
 
     @property
     def action_meta(self) -> dict[str, Any]:
-        meta = self.raw.get("описания_действий")
+        meta = schema.поле(self.raw, "описания_действий")
         return meta if isinstance(meta, dict) else {}
 
     def room(self, name: str) -> dict[str, Any]:
@@ -111,13 +115,14 @@ class ComplexMap:
         return rooms[name]
 
     def actions(self, room: str) -> list[str]:
-        return list(self.room(room).get("действия", []))
+        return list(schema.поле(self.room(room), "действия", []))
 
     def state(self, room: str) -> str:
-        return self.room(room).get("состояние", STATE_INACTIVE)
+        return schema.канон_состояния(
+            schema.поле(self.room(room), "состояние", STATE_INACTIVE))
 
     def active_actions(self, room: str) -> list[str]:
-        return list(self.room(room).get("активные_действия", []))
+        return list(schema.поле(self.room(room), "активные_действия", []))
 
     def describe_action(self, action: str) -> dict[str, Any]:
         meta = self.action_meta.get(action)
@@ -126,7 +131,7 @@ class ComplexMap:
 
     def is_combat(self, action: str) -> bool:
         """Ведёт ли действие к боевой сцене (раздел 8 ТЗ)."""
-        return bool(self.describe_action(action).get("боевое", True))
+        return bool(schema.поле(self.describe_action(action), "боевое", True))
 
     def snapshot(self) -> dict[str, Any]:
         """Копия данных только для чтения — то, что отдаётся чату.
@@ -151,7 +156,7 @@ class ComplexMap:
     # ------------------------------------------------------- изменение состояния
     def _check(self, room: str, action: str) -> dict[str, Any]:
         data = self.room(room)
-        if action not in data.get("действия", []):
+        if action not in schema.поле(data, "действия", []):
             raise UnknownAction(f"{room}: нет действия «{action}»")
         return data
 
@@ -175,16 +180,18 @@ class ComplexMap:
         data = self._check(room, action)
         self._require_confirmation(confirmation, f"{room}/{action}")
 
-        active = list(data.get("активные_действия", []))
+        active = list(schema.поле(data, "активные_действия", []))
         if action not in active:
             active.append(action)
-        data["активные_действия"] = active
-        data["состояние"] = STATE_ACTIVE
-        data["обновлено"] = _now()
-        history = list(data.get("история", []))
-        history.append({"время": data["обновлено"], "действие": action,
-                        "результат": "применено", "мастер": master, "пометка": note})
-        data["история"] = history
+        schema.записать(data, "активные_действия", active)
+        schema.записать(data, "состояние", schema.значение_состояния(data, STATE_ACTIVE))
+        отметка = _now()
+        schema.записать(data, "обновлено", отметка)
+        history = list(schema.поле(data, "история", []))
+        history.append(schema.запись(data, {"время": отметка, "действие": action,
+                                            "результат": "применено", "мастер": master,
+                                            "пометка": note}))
+        schema.записать(data, "история", history)
         self.save()
 
         meta = self.describe_action(action)
@@ -210,7 +217,7 @@ class ComplexMap:
         data = self._check(room, action)
         self._require_confirmation(confirmation, f"откат {room}/{action}")
 
-        active = [a for a in data.get("активные_действия", []) if a != action]
+        active = [a for a in schema.поле(data, "активные_действия", []) if a != action]
         data["активные_действия"] = active
         data["состояние"] = STATE_ACTIVE if active else STATE_INACTIVE
         data["обновлено"] = _now()
@@ -231,12 +238,14 @@ class ComplexMap:
         self._require_confirmation(confirmation, "сброс всех комнат")
         count = 0
         for data in self.rooms.values():
-            if data.get("состояние") != STATE_INACTIVE or data.get("активные_действия"):
+            if (schema.поле(data, "состояние") != STATE_INACTIVE
+                or schema.поле(data, "активные_действия")):
                 count += 1
-            data["состояние"] = STATE_INACTIVE
-            data["активные_действия"] = []
-            data["история"] = []
-            data["обновлено"] = _now()
+            schema.записать(data, "состояние",
+                            schema.значение_состояния(data, STATE_INACTIVE))
+            schema.записать(data, "активные_действия", [])
+            schema.записать(data, "история", [])
+            schema.записать(data, "обновлено", _now())
         self.save()
         return count
 
@@ -245,12 +254,12 @@ def summary(cmap: ComplexMap) -> str:
     """Таблица комнат для пульта ведущего."""
     lines = []
     for name, data in cmap.rooms.items():
-        state = data.get("состояние", STATE_INACTIVE)
+        state = schema.поле(data, "состояние", STATE_INACTIVE)
         mark = "●" if state == STATE_ACTIVE else "○"
-        actions = ", ".join(data.get("действия", [])) or "—"
+        actions = ", ".join(schema.поле(data, "действия", [])) or "—"
         lines.append(f"{mark} {name:<18} [{state}]")
         lines.append(f"    действия: {actions}")
-        active = data.get("активные_действия") or []
+        active = schema.поле(data, "активные_действия") or []
         if active:
             lines.append(f"    ПРИМЕНЕНО: {', '.join(active)}")
     return "\n".join(lines) if lines else "(в файле возможностей нет комнат)"

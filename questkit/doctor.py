@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from . import config, deepseek, constants as constants_mod, session as session_mod, ui
+from .i18n import t
 
 ОК, ПРЕДУПРЕЖДЕНИЕ, ОШИБКА = "ок", "внимание", "ошибка"
 
@@ -64,72 +65,72 @@ class Отчёт:
 def проверить_окружение(отчёт: Отчёт) -> None:
     версия = sys.version_info
     if версия >= (3, 9):
-        отчёт.добавить("Python", ОК, f"{версия.major}.{версия.minor}.{версия.micro}")
+        отчёт.добавить(t("doctor.python"), ОК, f"{версия.major}.{версия.minor}.{версия.micro}")
     else:
-        отчёт.добавить("Python", ОШИБКА, f"{версия.major}.{версия.minor}",
-                       "нужен Python 3.9 или новее")
+        отчёт.добавить(t("doctor.python"), ОШИБКА, f"{версия.major}.{версия.minor}",
+                       t("doctor.python.old"))
 
     текущая = (os.environ.get("LC_ALL") or os.environ.get("LC_CTYPE")
                or os.environ.get("LANG") or locale.getpreferredencoding(False) or "")
     if "utf" in текущая.lower():
-        отчёт.добавить("Локаль UTF-8", ОК, текущая)
+        отчёт.добавить(t("doctor.locale"), ОК, текущая)
     else:
-        отчёт.добавить("Локаль UTF-8", ПРЕДУПРЕЖДЕНИЕ, текущая or "не задана",
-                       "терминал сам подставит C.UTF-8 дочерним командам; "
-                       "для остального стоит выставить UTF-8-локаль в системе")
+        отчёт.добавить(t("doctor.locale"), ПРЕДУПРЕЖДЕНИЕ, текущая or "не задана",
+                       t("doctor.locale.advice"))
 
     if hasattr(os, "geteuid") and os.geteuid() == 0:
-        отчёт.добавить("Пользователь", ПРЕДУПРЕЖДЕНИЕ, "root",
-                       "под root головоломка с правами доступа не работает: "
-                       "файл читается без chmod. Играйте от обычного пользователя")
+        отчёт.добавить(t("doctor.user"), ПРЕДУПРЕЖДЕНИЕ, "root",
+                       t("doctor.user.root"))
     else:
-        отчёт.добавить("Пользователь", ОК, "обычный (не root)")
+        отчёт.добавить(t("doctor.user"), ОК, t("doctor.user.normal"))
 
-    отчёт.добавить("tmux", ОК if shutil.which("tmux") else ПРЕДУПРЕЖДЕНИЕ,
-                   "есть" if shutil.which("tmux") else "нет",
-                   "" if shutil.which("tmux") else
-                   "не обязателен: три окна можно открыть вручную")
+    отчёт.добавить(t("doctor.tmux"), ОК if shutil.which("tmux") else ПРЕДУПРЕЖДЕНИЕ,
+                   t("doctor.yes") if shutil.which("tmux") else t("doctor.no"),
+                   "" if shutil.which("tmux") else t("doctor.tmux.advice"))
 
     отсутствуют = [имя for имя in ("file", "gzip", "unzip", "tar", "base64", "rev", "tac")
                    if not shutil.which(имя)]
     if отсутствуют:
-        отчёт.добавить("Утилиты для головоломок", ПРЕДУПРЕЖДЕНИЕ,
-                       "нет: " + ", ".join(отсутствуют),
-                       "без них часть головоломок не решается штатными средствами")
+        отчёт.добавить(t("doctor.tools"), ПРЕДУПРЕЖДЕНИЕ,
+                       t("doctor.tools.missing", список=", ".join(отсутствуют),
+                         list=", ".join(отсутствуют)),
+                       t("doctor.tools.advice"))
     else:
-        отчёт.добавить("Утилиты для головоломок", ОК, "все на месте")
+        отчёт.добавить(t("doctor.tools"), ОК, t("doctor.tools.ok"))
 
 
 def проверить_конфигурацию(отчёт: Отчёт, cfg: dict) -> None:
     if cfg.get("_конфиг_найден"):
-        отчёт.добавить("Файл настроек", ОК, cfg.get("_путь_конфига", ""))
+        отчёт.добавить(t("doctor.config"), ОК, cfg.get("_путь_конфига", ""))
     else:
-        отчёт.добавить("Файл настроек", ПРЕДУПРЕЖДЕНИЕ,
-                       f"{cfg.get('_путь_конфига')} не найден — взяты умолчания",
-                       "скопируйте config/config.example.json в config/config.json")
+        отчёт.добавить(t("doctor.config"), ПРЕДУПРЕЖДЕНИЕ,
+                       t("doctor.config.missing", путь=cfg.get("_путь_конфига"),
+                         path=cfg.get("_путь_конфига")),
+                       t("doctor.config.advice"))
 
     ключ = config.api_key(cfg)
     if ключ:
-        отчёт.добавить("Ключ API", ОК, config.mask_key(ключ))
+        отчёт.добавить(t("doctor.api_key"), ОК, config.mask_key(ключ))
     else:
-        отчёт.добавить("Ключ API", ПРЕДУПРЕЖДЕНИЕ, "не задан",
-                       "без ключа доступен только режим --офлайн: "
-                       "export DEEPSEEK_API_KEY=…")
+        отчёт.добавить(t("doctor.api_key"), ПРЕДУПРЕЖДЕНИЕ, t("doctor.api_key.missing"),
+                       t("doctor.api_key.advice"))
 
 
 def проверить_данные(отчёт: Отчёт, cfg: dict) -> None:
     for имя in ("constants", "world", "stages", "persona", "layout"):
         путь = config.data_file(cfg, имя)
         if not путь.exists():
-            отчёт.добавить(f"Файл данных «{имя}»", ОШИБКА, f"{путь} не найден")
+            отчёт.добавить(t("doctor.data_file", имя=имя, name=имя), ОШИБКА,
+                           t("doctor.file.missing", путь=путь, path=путь))
             continue
         try:
             json.loads(путь.read_text(encoding="utf-8"))
         except json.JSONDecodeError as ошибка:
-            отчёт.добавить(f"Файл данных «{имя}»", ОШИБКА, f"битый JSON: {ошибка}",
-                           "проверьте запятые и кавычки")
+            отчёт.добавить(t("doctor.data_file", имя=имя, name=имя), ОШИБКА,
+                           t("doctor.file.bad_json", ошибка=ошибка, error=ошибка),
+                           t("doctor.file.bad_json_advice"))
             continue
-        отчёт.добавить(f"Файл данных «{имя}»", ОК, путь.name)
+        отчёт.добавить(t("doctor.data_file", имя=имя, name=имя), ОК, путь.name)
 
 
 def проверить_константы(отчёт: Отчёт, cfg: dict) -> None:
@@ -137,7 +138,7 @@ def проверить_константы(отчёт: Отчёт, cfg: dict) -> 
     try:
         константы = constants_mod.Constants(config.data_file(cfg, "constants"))
     except (FileNotFoundError, ValueError) as ошибка:
-        отчёт.добавить("Константы квеста", ОШИБКА, str(ошибка))
+        отчёт.добавить(t("doctor.constants"), ОШИБКА, str(ошибка))
         return
 
     потерянные: set[str] = set()
@@ -154,13 +155,13 @@ def проверить_константы(отчёт: Отчёт, cfg: dict) -> 
             потерянные |= константы.missing(файл.read_text(encoding="utf-8"))
 
     if потерянные:
-        отчёт.добавить("Константы квеста", ОШИБКА,
-                       "ссылки без значения: " + ", ".join(sorted(потерянные)),
-                       "добавьте их в data/quest.json — иначе игроки увидят «{{…}}»")
+        отчёт.добавить(t("doctor.constants"), ОШИБКА,
+                       t("doctor.constants.missing", список=", ".join(sorted(потерянные)),
+                         list=", ".join(sorted(потерянные))),
+                       t("doctor.constants.advice"))
     else:
-        отчёт.добавить("Константы квеста", ОК,
-                       f"код двери {константы.get('код_двери', '—')}, "
-                       f"объект {константы.get('объект', '—')}")
+        сводка = ", ".join(f"{к}={з}" for к, з in list(константы.values.items())[:3]) or "—"
+        отчёт.добавить(t("doctor.constants"), ОК, сводка)
 
 
 def проверить_заготовки(отчёт: Отчёт, cfg: dict) -> None:
@@ -184,10 +185,13 @@ def проверить_заготовки(отчёт: Отчёт, cfg: dict) -> 
             if not (каталог / файл).exists():
                 пропавшие.append(f"{имя}: {файл}")
     if пропавшие:
-        отчёт.добавить("Заготовленные ответы", ОШИБКА, "нет файлов: " + ", ".join(пропавшие),
-                       f"ожидались в {каталог}")
+        отчёт.добавить(t("doctor.canned"), ОШИБКА,
+                       t("doctor.canned.missing", список=", ".join(пропавшие),
+                         list=", ".join(пропавшие)),
+                       t("doctor.canned.advice", путь=каталог, path=каталог))
     else:
-        отчёт.добавить("Заготовленные ответы", ОК, f"{всего} шт., все на месте")
+        отчёт.добавить(t("doctor.canned"), ОК,
+                       t("doctor.canned.ok", число=всего, count=всего))
 
 
 def проверить_раскладку(отчёт: Отчёт, cfg: dict) -> None:
@@ -196,19 +200,23 @@ def проверить_раскладку(отчёт: Отчёт, cfg: dict) -> 
         seeder = Seeder(config.data_file(cfg, "layout"),
                         cfg["terminal"].get("sandbox_root"))
     except (FileNotFoundError, json.JSONDecodeError) as ошибка:
-        отчёт.добавить("Раскладка файлов", ОШИБКА, str(ошибка))
+        отчёт.добавить(t("doctor.layout"), ОШИБКА, str(ошибка))
         return
     if not seeder.root.is_dir():
-        отчёт.добавить("Раскладка файлов", ОШИБКА, f"нет каталога {seeder.root}",
-                       "разложите файлы: python3 run_seed.py разложить")
+        отчёт.добавить(t("doctor.layout"), ОШИБКА,
+                       t("doctor.layout.no_dir", путь=seeder.root, path=seeder.root),
+                       t("doctor.layout.advice"))
         return
     порядок, беда = seeder.verify()
     if беда:
-        отчёт.добавить("Раскладка файлов", ОШИБКА,
-                       f"{len(беда)} с ошибками: " + "; ".join(беда[:3]),
-                       "пересоберите: python3 run_seed.py разложить --перезаписать")
+        отчёт.добавить(t("doctor.layout"), ОШИБКА,
+                       t("doctor.layout.broken", число=len(беда), список="; ".join(беда[:3]),
+                         count=len(беда), list="; ".join(беда[:3])),
+                       t("doctor.layout.rebuild"))
     else:
-        отчёт.добавить("Раскладка файлов", ОК, f"{len(порядок)} файлов в {seeder.root}")
+        отчёт.добавить(t("doctor.layout"), ОК,
+                       t("doctor.layout.ok", число=len(порядок), путь=seeder.root,
+                         count=len(порядок), path=seeder.root))
 
 
 def проверить_состояние(отчёт: Отчёт, cfg: dict) -> None:
@@ -225,25 +233,26 @@ def проверить_состояние(отчёт: Отчёт, cfg: dict) -> 
 
     остатки = []
     if израсходовано:
-        остатки.append(f"израсходовано обращений: {израсходовано}")
+        остатки.append(t("doctor.state.messages", число=израсходовано, count=израсходовано))
     if применённые:
-        остатки.append("применённые действия: "
-                       + ", ".join(f"{к}/{д}" for к, д in применённые))
+        остатки.append(t("doctor.state.actions",
+                         список=", ".join(f"{к}/{д}" for к, д in применённые),
+                         list=", ".join(f"{к}/{д}" for к, д in применённые)))
     if данные.get("этап") not in (None, "", "шлюз"):
-        остатки.append(f"этап: {данные.get('этап')}")
+        остатки.append(t("doctor.state.stage", этап=данные.get("этап"),
+                         stage=данные.get("этап")))
 
     if остатки:
-        отчёт.добавить("Состояние партии", ПРЕДУПРЕЖДЕНИЕ, "; ".join(остатки),
-                       "это следы прошлой партии. Сброс: python3 run_master.py сброс --да "
-                       "и python3 run_chat.py --новая")
+        отчёт.добавить(t("doctor.party_state"), ПРЕДУПРЕЖДЕНИЕ, "; ".join(остатки),
+                       t("doctor.state.advice"))
     else:
-        отчёт.добавить("Состояние партии", ОК, "чистое, можно начинать")
+        отчёт.добавить(t("doctor.party_state"), ОК, t("doctor.state.clean"))
 
 
 def проверить_связь(отчёт: Отчёт, cfg: dict) -> None:
     """Пробное обращение к модели — единственная проверка, которая ходит в сеть."""
     if not config.api_key(cfg):
-        отчёт.добавить("Связь с моделью", ПРЕДУПРЕЖДЕНИЕ, "пропущена: нет ключа")
+        отчёт.добавить(t("doctor.model"), ПРЕДУПРЕЖДЕНИЕ, t("doctor.model.skipped"))
         return
     try:
         клиент = deepseek.DeepSeekClient(cfg)
@@ -252,11 +261,13 @@ def проверить_связь(отчёт: Отчёт, cfg: dict) -> None:
             {"role": "user", "content": "проверка связи"},
         ])
     except deepseek.DeepSeekError as ошибка:
-        отчёт.добавить("Связь с моделью", ОШИБКА, str(ошибка)[:160])
+        отчёт.добавить(t("doctor.model"), ОШИБКА, str(ошибка)[:160])
         return
-    отчёт.добавить("Связь с моделью", ОК,
-                   f"{cfg['deepseek']['model']} отвечает ({ответ[:40].strip()}…), "
-                   f"токенов: {расход.get('total_tokens', '?')}")
+    отчёт.добавить(t("doctor.model"), ОК,
+                   t("doctor.model.ok", модель=cfg["deepseek"]["model"],
+                     ответ=ответ[:40].strip(), токены=расход.get("total_tokens", "?"),
+                     model=cfg["deepseek"]["model"], answer=ответ[:40].strip(),
+                     tokens=расход.get("total_tokens", "?")))
 
 
 ПРОВЕРКИ: list[Callable[..., Any]] = [
@@ -278,9 +289,10 @@ def проверить(cfg: dict, живой: bool = False) -> Отчёт:
 
 def напечатать(отчёт: Отчёт) -> None:
     """Показывает отчёт ведущему."""
-    значки = {ОК: ("  ок     ", "зелёный"), ПРЕДУПРЕЖДЕНИЕ: (" внимание", "жёлтый"),
-              ОШИБКА: ("  ОШИБКА ", "красный")}
-    print(ui.box("ПРОВЕРКА ГОТОВНОСТИ К ПАРТИИ", [], "голубой"))
+    значки = {ОК: (t("doctor.mark.ok"), "зелёный"),
+              ПРЕДУПРЕЖДЕНИЕ: (t("doctor.mark.warning"), "жёлтый"),
+              ОШИБКА: (t("doctor.mark.error"), "красный")}
+    print(ui.box(t("doctor.title"), [], "голубой"))
     for строка in отчёт.строки:
         значок, цвет = значки.get(строка.состояние, ("    ?    ", "белый"))
         print(ui.c(значок, цвет) + f" {строка.название}: {строка.подробность}")
@@ -289,13 +301,13 @@ def напечатать(отчёт: Отчёт) -> None:
                 print(ui.c(f"           └ {кусок}", "тусклый"))
     print()
     if отчёт.готово and not отчёт.предупреждений:
-        print(ui.c("ВСЁ ГОТОВО. Можно начинать партию.", "зелёный", "жирный"))
+        print(ui.c(t("doctor.verdict.ready"), "зелёный", "жирный"))
     elif отчёт.готово:
-        print(ui.c(f"Готово, но есть замечания ({отчёт.предупреждений}). "
-                   "Играть можно.", "жёлтый", "жирный"))
+        print(ui.c(t("doctor.verdict.warnings", число=отчёт.предупреждений,
+                     count=отчёт.предупреждений), "жёлтый", "жирный"))
     else:
-        print(ui.c(f"НЕ ГОТОВО: ошибок {отчёт.ошибок}. "
-                   "Исправьте отмеченное выше.", "красный", "жирный"))
+        print(ui.c(t("doctor.verdict.not_ready", число=отчёт.ошибок, count=отчёт.ошибок),
+                   "красный", "жирный"))
 
 
 def _перенос(текст: str, ширина: int) -> list[str]:

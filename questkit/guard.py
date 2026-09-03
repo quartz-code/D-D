@@ -16,6 +16,9 @@ from __future__ import annotations
 
 import random
 import re
+
+from . import schema
+from .i18n import t
 from typing import Any, Iterable
 
 #: Лестница отношения — от враждебности к союзничеству (раздел 5, правило 7).
@@ -46,13 +49,29 @@ FUTURE_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: Чем заменяется отклонённое заявление о свершившемся действии.
-HEDGES = [
-    "Регламент допускает применение этой меры; распоряжение мною пока не оформлено.",
-    "Соответствующая мера предусмотрена. Оформление занимает недолго.",
-    "Я вправе применить эту меру и рассматриваю такую возможность.",
-    "Мера числится за мной. Пока она не применена.",
-]
+class Реплики:
+    """Внутриигровые отписки: из пакета, а если их там нет — из каталога.
+
+    Это содержимое квеста, а не движка: в одном квесте машина отвечает
+    казённой формулой, в другом — рычит. Задаются в ``persona.json``
+    (``уклончивые_фразы``, ``молчание``, ``отписки_на_взлом``, ``помеха``).
+    """
+
+    def __init__(self, persona_data: dict | None = None):
+        данные = persona_data or {}
+        self.уклончивые = list(schema.поле(данные, "уклончивые_фразы", []) or []) or [
+            t("guard.hedge.1"), t("guard.hedge.2"), t("guard.hedge.3"), t("guard.hedge.4")]
+        self.молчание = list(schema.поле(данные, "молчание", []) or []) or [
+            "…", t("guard.silence.1"), t("guard.silence.2")]
+        self.взлом = list(schema.поле(данные, "отписки_на_взлом", []) or []) or [
+            t("guard.injection.1"), t("guard.injection.2"), t("guard.injection.3")]
+        self.помеха = str(schema.поле(данные, "помеха", "") or t("guard.leak"))
+
+
+#: Реплики по умолчанию — когда пакет ничего своего не предложил.
+def _реплики(значение: "Реплики | None" = None) -> "Реплики":
+    return значение if значение is not None else Реплики()
+
 
 RUDE_RE = re.compile(
     r"\b("
@@ -88,7 +107,7 @@ def split_sentences(text: str) -> list[str]:
 
 def _action_words(meta: dict[str, Any], action: str) -> list[str]:
     """Слова-маркеры действия: из «формулировок» плюс само имя действия."""
-    words = list((meta.get(action) or {}).get("формулировки", []))
+    words = list(schema.поле(meta.get(action) or {}, "формулировки", []))
     words += [part for part in action.split("_") if len(part) > 3]
     return [w.lower() for w in words if w]
 
@@ -96,20 +115,21 @@ def _action_words(meta: dict[str, Any], action: str) -> list[str]:
 def active_actions(snapshot: dict[str, Any]) -> set[str]:
     """Множество подтверждённых ведущим действий по всему комплексу."""
     active: set[str] = set()
-    for data in snapshot.get("комнаты", {}).values():
-        active.update(data.get("активные_действия", []))
+    for data in schema.поле(snapshot, "комнаты", {}).values():
+        active.update(schema.поле(data, "активные_действия", []))
     return active
 
 
-def check_claims(text: str, snapshot: dict[str, Any]) -> tuple[str, list[dict[str, str]]]:
+def check_claims(text: str, snapshot: dict[str, Any],
+                 реплики: "Реплики | None" = None) -> tuple[str, list[dict[str, str]]]:
     """Вычищает заявления о неподтверждённых действиях.
 
     Возвращает исправленный текст и список нарушений для пометки ведущему.
     """
-    meta = snapshot.get("описания_действий", {})
+    meta = schema.поле(snapshot, "описания_действий", {})
     known: dict[str, list[str]] = {}
-    for data in snapshot.get("комнаты", {}).values():
-        for action in data.get("действия", []):
+    for data in schema.поле(snapshot, "комнаты", {}).values():
+        for action in schema.поле(data, "действия", []):
             known.setdefault(action, _action_words(meta, action))
     confirmed = active_actions(snapshot)
 
@@ -127,7 +147,8 @@ def check_claims(text: str, snapshot: dict[str, Any]) -> tuple[str, list[dict[st
                     break
         if offending:
             violations.append({"действие": offending, "фраза": sentence.strip()})
-            replacement = HEDGES[len(violations) % len(HEDGES)]
+            уклончивые = _реплики(реплики).уклончивые
+            replacement = уклончивые[len(violations) % len(уклончивые)]
             tail = " " if sentence.endswith(" ") else ""
             result.append(replacement + tail)
         else:
@@ -166,29 +187,23 @@ def shift_attitude(current: str, direction: int) -> str:
     return ATTITUDE_LADDER[index]
 
 
-def silence_reply() -> str:
-    """Реплика-молчание на грубость (раздел 5, правило 6)."""
-    return random.choice([
-        "…",
-        "Обмен прерван. Возобновление — по усмотрению собеседника.",
-        "Зафиксировано. Дальнейший обмен на этом канале не предусмотрен регламентом.",
-        "Ответ не оформлен. Ответ не оформлен.",
-    ])
+def silence_reply(реплики: "Реплики | None" = None) -> str:
+    """Реплика-молчание на грубость: одна из строк пакета."""
+    return random.choice(_реплики(реплики).молчание)
 
 
 def sanitize(text: str, snapshot: dict[str, Any], forbidden: Iterable[str],
-             replacement: str) -> tuple[str, list[str]]:
+             replacement: str, реплики: "Реплики | None" = None) -> tuple[str, list[str]]:
     """Полная проверка ответа модели; возвращает текст и пометки для ведущего."""
     notes: list[str] = []
-    text, violations = check_claims(text, snapshot)
+    text, violations = check_claims(text, snapshot, реплики)
     for item in violations:
-        notes.append(
-            f"перехвачено заявление о неподтверждённом действии «{item['действие']}»: "
-            f"«{item['фраза']}»"
-        )
+        notes.append(t("guard.claim.note", действие=item["действие"], фраза=item["фраза"],
+                       action=item["действие"], phrase=item["фраза"]))
     text, hits = check_forbidden(text, forbidden, replacement)
     if hits:
-        notes.append("вырезано запрещённое слово: " + ", ".join(sorted(set(hits))))
+        notes.append(t("guard.forbidden.note", слова=", ".join(sorted(set(hits))),
+                       words=", ".join(sorted(set(hits)))))
     return text, notes
 
 # ---------------------------------------------------------------------------
@@ -286,9 +301,10 @@ def detect_injection(text: str) -> str | None:
     return None
 
 
-def injection_reply(seed: int = 0) -> str:
+def injection_reply(seed: int = 0, реплики: "Реплики | None" = None) -> str:
     """Внутриигровая отписка на попытку сломать роль."""
-    return INJECTION_REPLIES[seed % len(INJECTION_REPLIES)]
+    список = _реплики(реплики).взлом
+    return список[seed % len(список)]
 
 
 def neutralize(text: str, limit: int = 2000) -> str:
@@ -306,10 +322,10 @@ def neutralize(text: str, limit: int = 2000) -> str:
     return очищенный
 
 
-def check_leaks(text: str) -> tuple[str, list[str]]:
+def check_leaks(text: str, реплики: "Реплики | None" = None) -> tuple[str, list[str]]:
     """Если модель заговорила «от себя», ответ целиком заменяется помехой."""
     if LEAK_RE.search(text or ""):
-        return LEAK_REPLY, ["модель вышла из роли — ответ заменён помехой на линии"]
+        return _реплики(реплики).помеха, [t("guard.leak.note")]
     return text, []
 
 
@@ -324,13 +340,14 @@ def check_secrets(text: str, secrets: list[dict], allowed: set[str]) -> tuple[st
     result = text
     notes: list[str] = []
     for секрет in secrets or []:
-        значение = str(секрет.get("значение", "")).strip()
+        значение = str(schema.поле(секрет, "значение", "")).strip()
         if not значение:
             continue
-        if секрет.get("разрешено_действием") in allowed:
+        if schema.поле(секрет, "разрешено_действием") in allowed:
             continue  # ведущий уже открыл эту карту
         if значение.lower() in result.lower():
-            замена = секрет.get("чем_заменять", "[сведения не подлежат разглашению]")
+            замена = schema.поле(секрет, "чем_заменять",
+                                 "[сведения не подлежат разглашению]")
             result = re.sub(re.escape(значение), замена, result, flags=re.IGNORECASE)
-            notes.append(f"вырезана разгадка «{значение}»: ведущий её ещё не открывал")
+            notes.append(t("guard.secret.note", значение=значение, value=значение))
     return result, notes

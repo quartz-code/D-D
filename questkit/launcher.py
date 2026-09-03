@@ -25,7 +25,10 @@ import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import config, doctor, features, pack as pack_mod, paths, constants as constants_mod, ui
+from . import (config, doctor, features, pack as pack_mod, paths,
+               constants as constants_mod, ui)
+from . import i18n
+from .i18n import t
 
 #: Эмуляторы терминала, в которых можно открыть окна квеста.
 ТЕРМИНАЛЫ = ["x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal",
@@ -91,7 +94,8 @@ def список_пакетов(cfg: dict) -> list[Пакет]:
 
 
 def подпись_пакета(пакет: Пакет) -> str:
-    вид = "шаблон" if пакет.это_шаблон else "пример"
+    вид = t("launcher.pack_kind.template" if пакет.это_шаблон
+            else "launcher.pack_kind.example")
     return f"[{вид} · {пакет.язык}] {пакет.название}  —  {пакет.ссылка}"
 
 
@@ -174,12 +178,13 @@ def разложить(cfg: dict, случайный_код: bool = False) -> st
     константы = constants_mod.Constants(config.data_file(cfg, "constants"))
     сообщения = []
     if случайный_код:
-        сообщения.append(f"код двери на эту партию: {константы.randomize_door_code()}")
+        новый = константы.randomize_door_code()
+        сообщения.append(t("launcher.random_code", код=новый, code=новый))
     seeder = Seeder(config.data_file(cfg, "layout"),
                     cfg["terminal"].get("sandbox_root"), константы)
     созданные = seeder.seed(overwrite=True)
-    сообщения.append(f"разложено файлов: {len(созданные)}")
-    сообщения.append(f"каталог: {seeder.root}")
+    сообщения.append(t("launcher.seeded", число=len(созданные), count=len(созданные)))
+    сообщения.append(t("launcher.seed_dir", путь=seeder.root, path=seeder.root))
     return "\n".join(сообщения)
 
 
@@ -188,14 +193,16 @@ def проверка(cfg: dict, живой: bool = False) -> tuple[bool, str]:
     отчёт = doctor.проверить(cfg, живой=живой)
     строки = []
     for с in отчёт.строки:
-        значок = {doctor.ОК: "  ок    ", doctor.ПРЕДУПРЕЖДЕНИЕ: " внимание",
-                  doctor.ОШИБКА: "  ОШИБКА"}.get(с.состояние, "   ?    ")
+        значок = {doctor.ОК: t("doctor.mark.ok"),
+                  doctor.ПРЕДУПРЕЖДЕНИЕ: t("doctor.mark.warning"),
+                  doctor.ОШИБКА: t("doctor.mark.error")}.get(с.состояние, "   ?    ")
         строки.append(f"{значок} {с.название}: {с.подробность}")
         if с.совет:
             строки.append(f"          └ {с.совет}")
-    итог = ("Всё готово." if отчёт.готово and not отчёт.предупреждений
-            else f"Готово с замечаниями ({отчёт.предупреждений})." if отчёт.готово
-            else f"НЕ ГОТОВО: ошибок {отчёт.ошибок}.")
+    итог = (t("doctor.verdict.ready") if отчёт.готово and not отчёт.предупреждений
+            else t("doctor.verdict.warnings", число=отчёт.предупреждений,
+                   count=отчёт.предупреждений) if отчёт.готово
+            else t("doctor.verdict.not_ready", число=отчёт.ошибок, count=отчёт.ошибок))
     return отчёт.готово, "\n".join(строки + ["", итог])
 
 
@@ -229,7 +236,7 @@ def открыть_окна(что: list[str] | None = None) -> tuple[bool, str]
             subprocess.Popen([терминал, "-e", str(скрипт)],
                              cwd=str(paths.PROJECT_ROOT),
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True, "Окна открыты в tmux."
+            return True, t("launcher.windows.tmux")
         except OSError:
             pass
     if терминал:
@@ -243,9 +250,8 @@ def открыть_окна(что: list[str] | None = None) -> tuple[bool, str]
             except OSError:
                 continue
         if открыто:
-            return True, f"Открыто окон: {открыто}."
-    return False, ("Не нашёл, в чём открыть окна. Запустите вручную "
-                   f"в трёх консолях:\n{подсказка}")
+            return True, t("launcher.windows.opened", число=открыто, count=открыто)
+    return False, t("launcher.windows.manual", команды=подсказка, commands=подсказка)
 
 
 # ------------------------------------------------------------------ текстовый режим
@@ -256,11 +262,11 @@ def текстовое_меню(cfg: dict, путь: Path, ввод=input, вы�
         строки = состояние(cfg)
         вывод("")
         активный = pack_mod.load(cfg)
-        вывод(ui.box("ПОДГОТОВКА ПАРТИИ", [
-            f"квест:  {активный.name}",
-            f"пакет:  {cfg.get('content')}",
+        вывод(ui.box(t("launcher.menu.title"), [
+            f'{t("launcher.menu.quest"):<8}{активный.name}',
+            f'{t("launcher.menu.pack"):<8}{cfg.get("content")}',
             "",
-            "Отметьте дополнительные возможности. Квест работает и без них.",
+            t("launcher.menu.hint"),
         ], "голубой"))
         for номер, с in enumerate(строки, 1):
             отметка = "[x]" if выбор.get(с.ключ) else "[ ]"
@@ -269,12 +275,12 @@ def текстовое_меню(cfg: dict, путь: Path, ввод=input, вы�
             for кусок in textwrap.wrap(с.описание, 66):
                 вывод(f"       {кусок}")
         вывод("")
-        вывод("  номер — переключить, с — сохранить, р — разложить файлы,")
-        вывод("  к — разложить со случайным кодом, п — проверка готовности,")
-        вывод("  и — сменить квест (пакет содержимого),")
-        вывод("  о — открыть окна квеста, в — выход")
+        вывод(t("launcher.menu.keys1"))
+        вывод(t("launcher.menu.keys2"))
+        вывод(t("launcher.menu.keys3"))
+        вывод(t("launcher.menu.keys4"))
         try:
-            ответ = str(ввод("выбор> ")).strip().lower()
+            ответ = str(ввод(t("launcher.menu.prompt"))).strip().lower()
         except (EOFError, KeyboardInterrupt):
             вывод("")
             return 0
@@ -282,13 +288,13 @@ def текстовое_меню(cfg: dict, путь: Path, ввод=input, вы�
         if ответ.isdigit() and 1 <= int(ответ) <= len(строки):
             с = строки[int(ответ) - 1]
             if not с.доступна and not выбор.get(с.ключ):
-                вывод(f"  недоступно: {с.пояснение}")
+                вывод(t("launcher.menu.unavailable", причина=с.пояснение, reason=с.пояснение))
                 continue
             выбор[с.ключ] = not выбор.get(с.ключ)
         elif ответ in ("с", "сохранить", "s"):
             файл = сохранить(выбор, путь)
             cfg = config.load(файл)
-            вывод(f"  сохранено: {файл}")
+            вывод(t("launcher.menu.saved", файл=файл, file=файл))
         elif ответ in ("р", "разложить", "r"):
             вывод(разложить(cfg))
         elif ответ in ("к", "код"):
@@ -299,31 +305,32 @@ def текстовое_меню(cfg: dict, путь: Path, ввод=input, вы�
         elif ответ in ("и", "квест", "пакет"):
             пакеты = список_пакетов(cfg)
             if not пакеты:
-                вывод("  пакетов не найдено")
+                вывод(t("launcher.menu.no_packs"))
                 continue
             for номер, п in enumerate(пакеты, 1):
-                отметка = " ← сейчас" if п.ссылка == str(cfg.get("content", "")) else ""
+                отметка = (t("launcher.menu.now")
+                           if п.ссылка == str(cfg.get("content", "")) else "")
                 вывод(f"  {номер}. {подпись_пакета(п)}{отметка}")
             try:
-                выбранный = str(ввод("какой пакет> ")).strip()
+                выбранный = str(ввод(t("launcher.menu.which_pack"))).strip()
             except (EOFError, KeyboardInterrupt):
                 continue
             if выбранный.isdigit() and 1 <= int(выбранный) <= len(пакеты):
                 файл = выбрать_пакет(пакеты[int(выбранный) - 1], путь)
                 cfg = config.load(файл)
                 выбор = {с.ключ: с.включена for с in состояние(cfg)}
-                вывод(f"  квест: {pack_mod.load(cfg).name}")
+                вывод(t("launcher.quest_now", название=pack_mod.load(cfg).name, name=pack_mod.load(cfg).name))
             else:
-                вывод("  не понял номер")
+                вывод(t("launcher.menu.bad_number"))
         elif ответ in ("о", "окна", "o"):
             _, пояснение = открыть_окна()
             вывод(пояснение)
         elif ответ in ("в", "выход", "q", "exit"):
             сохранить(выбор, путь)
-            вывод("  настройки сохранены")
+            вывод(t("launcher.menu.settings_saved"))
             return 0
         else:
-            вывод("  не понял; введите номер возможности или букву команды")
+            вывод(t("launcher.menu.confused"))
 
 
 # ------------------------------------------------------------------ окно tkinter
@@ -333,22 +340,21 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
         import tkinter as tk
         from tkinter import scrolledtext, ttk
     except ImportError:
-        raise RuntimeError(
-            "tkinter недоступен. Установите его (sudo apt install python3-tk) "
-            "или запустите текстовое меню: python3 run_launcher.py --текст")
+        raise RuntimeError(t("launcher.no_tkinter"))
 
     окно = tk.Tk()
-    окно.title(f"{pack_mod.load(cfg).name} — подготовка партии")
+    окно.title(t("launcher.window.title", квест=pack_mod.load(cfg).name,
+                 quest=pack_mod.load(cfg).name))
     окно.geometry("760x680")
     окно.minsize(640, 520)
 
-    заголовок = ttk.Label(окно, text="Подготовка партии",
+    заголовок = ttk.Label(окно, text=t("launcher.window.header"),
                           font=("TkDefaultFont", 15, "bold"))
     заголовок.pack(anchor="w", padx=16, pady=(14, 2))
-    ttk.Label(окно, text="Отметьте, что включить. Базовый квест работает и без "
-                         "дополнений.", foreground="#555").pack(anchor="w", padx=16)
+    ttk.Label(окно, text=t("launcher.window.subtitle"),
+              foreground="#555").pack(anchor="w", padx=16)
 
-    выбор_пакета = ttk.LabelFrame(окно, text="Какой квест играем")
+    выбор_пакета = ttk.LabelFrame(окно, text=t("launcher.window.pack_frame"))
     выбор_пакета.pack(fill="x", padx=16, pady=(12, 0))
     пакеты = список_пакетов(cfg)
     текущий = str(cfg.get("content", ""))
@@ -359,11 +365,10 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
     поле = ttk.Combobox(выбор_пакета, values=подписи, textvariable=переменная_пакета,
                         state="readonly", width=70)
     поле.pack(anchor="w", padx=10, pady=8)
-    ttk.Label(выбор_пакета, text="Свой квест: скопируйте templates/blank-ru в свою папку "
-                                 "и выберите её здесь.", foreground="#555",
+    ttk.Label(выбор_пакета, text=t("launcher.window.pack_hint"), foreground="#555",
               wraplength=680, justify="left").pack(anchor="w", padx=10, pady=(0, 8))
 
-    рамка = ttk.LabelFrame(окно, text="Дополнительные возможности")
+    рамка = ttk.LabelFrame(окно, text=t("launcher.window.features_frame"))
     рамка.pack(fill="x", padx=16, pady=12)
 
     переменные: dict[str, tk.BooleanVar] = {}
@@ -378,7 +383,8 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
                   wraplength=680, justify="left").pack(anchor="w", padx=22)
         if not с.доступна:
             галочка.state(["disabled"])
-            ttk.Label(строка, text=f"недоступно: {с.пояснение}", foreground="#a33",
+            ttk.Label(строка, text=t("launcher.window.unavailable", причина=с.пояснение,
+                                     reason=с.пояснение), foreground="#a33",
                       wraplength=680, justify="left").pack(anchor="w", padx=22)
     ttk.Label(рамка, text="").pack()
 
@@ -406,9 +412,10 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
         пакет = выбранный_пакет()
         if пакет is not None and пакет.ссылка != str(config.load(путь).get("content", "")):
             выбрать_пакет(пакет, путь)
-            печать(f"Квест: {пакет.название} ({пакет.ссылка})")
+            печать(t("launcher.window.quest_set", название=пакет.название,
+                     путь=пакет.ссылка, name=пакет.название, path=пакет.ссылка))
         файл = сохранить(текущий_выбор(), путь)
-        печать(f"Настройки сохранены: {файл}")
+        печать(t("launcher.window.saved", файл=файл, file=файл))
         return config.load(файл)
 
     def действие_разложить(случайный: bool = False) -> None:
@@ -416,7 +423,7 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
         try:
             печать(разложить(обновлённый, случайный))
         except Exception as ошибка:
-            печать(f"Не получилось разложить файлы: {ошибка}")
+            печать(t("launcher.window.seed_failed", ошибка=ошибка, error=ошибка))
 
     def действие_проверка() -> None:
         обновлённый = действие_сохранить()
@@ -430,19 +437,18 @@ def запустить_окно(cfg: dict, путь: Path) -> int:  # pragma: no
 
     кнопки = ttk.Frame(окно)
     кнопки.pack(fill="x", padx=16, pady=(0, 14))
-    ttk.Button(кнопки, text="Разложить файлы",
+    ttk.Button(кнопки, text=t("launcher.window.btn_seed"),
                command=lambda: действие_разложить(False)).pack(side="left")
-    ttk.Button(кнопки, text="Случайный код",
+    ttk.Button(кнопки, text=t("launcher.window.btn_code"),
                command=lambda: действие_разложить(True)).pack(side="left", padx=6)
-    ttk.Button(кнопки, text="Проверка готовности",
+    ttk.Button(кнопки, text=t("launcher.window.btn_check"),
                command=действие_проверка).pack(side="left")
-    ttk.Button(кнопки, text="Открыть окна квеста",
+    ttk.Button(кнопки, text=t("launcher.window.btn_windows"),
                command=действие_окна).pack(side="left", padx=6)
-    ttk.Button(кнопки, text="Сохранить и закрыть",
+    ttk.Button(кнопки, text=t("launcher.window.btn_save"),
                command=lambda: (действие_сохранить(), окно.destroy())).pack(side="right")
 
-    печать("Готово к настройке. Галочки применяются при сохранении и при любом "
-           "действии на кнопках.")
+    печать(t("launcher.window.ready"))
     окно.mainloop()
     return 0
 
@@ -461,6 +467,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     cfg = config.load(args.config)
+    i18n.init(cfg)
     ui.init(cfg)
     путь = путь_конфига(args.config)
     if args.text:
@@ -469,7 +476,7 @@ def main(argv: list[str] | None = None) -> int:
         return запустить_окно(cfg, путь)
     except RuntimeError as ошибка:
         ui.error(str(ошибка))
-        print(ui.c("Открываю текстовое меню.", "жёлтый"))
+        print(ui.c(t("launcher.fallback_text"), "жёлтый"))
         return текстовое_меню(cfg, путь)
 
 

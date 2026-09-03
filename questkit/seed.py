@@ -37,7 +37,9 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from . import config, paths, constants as constants_mod, ui
+from . import config, paths, constants as constants_mod, schema, ui
+from . import i18n
+from .i18n import t
 from .pngtext import write_png
 
 #: Файл-маркер в корне раскладки: без него «очистить» ничего не удаляет.
@@ -53,10 +55,10 @@ SIGNATURES = {
 
 def _lines(entry: dict[str, Any]) -> list[str]:
     """Содержимое файла: список строк или одна строка с переводами строк."""
-    if "строки" in entry:
-        return [str(line) for line in entry["строки"]]
-    text = entry.get("содержимое", "")
-    return str(text).splitlines()
+    строки = schema.поле(entry, "строки")
+    if строки is not None:
+        return [str(line) for line in строки]
+    return str(schema.поле(entry, "содержимое", "")).splitlines()
 
 
 def _text(entry: dict[str, Any]) -> str:
@@ -76,7 +78,7 @@ def _write_gzip(path: Path, entry: dict[str, Any]) -> None:
 
 def _write_zip(path: Path, entry: dict[str, Any]) -> None:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name, content in entry.get("вложения", {}).items():
+        for name, content in schema.поле(entry, "вложения", {}).items():
             body = "\n".join(content) if isinstance(content, list) else str(content)
             archive.writestr(name, body + "\n")
 
@@ -93,8 +95,8 @@ def _write_tar(path: Path, entry: dict[str, Any]) -> None:
 
 
 def _write_png(path: Path, entry: dict[str, Any]) -> None:
-    write_png(path, [str(line) for line in entry.get("надписи", [])],
-              entry.get("заметки", {}), int(entry.get("масштаб", 6)))
+    write_png(path, [str(line) for line in schema.поле(entry, "надписи", [])],
+              schema.поле(entry, "заметки", {}), int(schema.поле(entry, "масштаб", 6)))
 
 
 def _write_base64(path: Path, entry: dict[str, Any]) -> None:
@@ -115,7 +117,7 @@ def _write_tac(path: Path, entry: dict[str, Any]) -> None:
 
 def _write_xor(path: Path, entry: dict[str, Any]) -> None:
     """Побайтовый XOR: разбирается только скриптом (python3 в ВМ есть)."""
-    key = int(entry.get("ключ", 42)) & 0xFF
+    key = int(schema.поле(entry, "ключ", 42)) & 0xFF
     data = _text(entry).encode("utf-8")
     path.write_bytes(bytes(byte ^ key for byte in data))
 
@@ -147,12 +149,12 @@ class Seeder:
                           else constants_mod.для_файла(self.path))
         сырое = json.loads(self.path.read_text(encoding="utf-8"))
         self.scenario: dict[str, Any] = self.constants.render(сырое)
-        self.root = paths.expand(root or self.scenario.get("корень", "~/комплекс"))
-        self.marker = self.scenario.get("маркер", MARKER)
+        self.root = paths.expand(root or schema.поле(self.scenario, "корень", "~/квест"))
+        self.marker = schema.поле(self.scenario, "маркер", MARKER)
 
     @property
     def files(self) -> list[dict[str, Any]]:
-        return list(self.scenario.get("файлы", []))
+        return list(schema.поле(self.scenario, "файлы", []))
 
     # ------------------------------------------------------------- раскладка
     def seed(self, overwrite: bool = False) -> list[Path]:
@@ -160,31 +162,34 @@ class Seeder:
             self.wipe(confirmed=True, quiet=True)
         self.root.mkdir(parents=True, exist_ok=True)
 
-        for directory in self.scenario.get("каталоги", []):
+        for directory in schema.поле(self.scenario, "каталоги", []):
             (self.root / directory).mkdir(parents=True, exist_ok=True)
 
         created: list[Path] = []
         for entry in self.files:
-            target = self.root / entry["путь"]
+            target = self.root / schema.поле(entry, "путь")
             target.parent.mkdir(parents=True, exist_ok=True)
-            kind = entry.get("тип", "текст")
+            kind = schema.тип_файла(schema.поле(entry, "тип", "текст"))
             writer = WRITERS.get(kind)
             if writer is None:
-                ui.error(f"неизвестный тип файла «{kind}» в {entry['путь']} — пропущен")
+                ui.error(t("seed.unknown_type", тип=kind, путь=schema.поле(entry, "путь"),
+                           type=kind, path=schema.поле(entry, "путь")))
                 continue
             if target.exists():
                 target.chmod(0o644)  # чтобы перезапись не спотыкалась о права
             writer(target, entry)
-            if entry.get("права"):
-                target.chmod(int(str(entry["права"]), 8))
-            if entry.get("время"):
-                stamp = time.mktime(time.strptime(entry["время"], "%Y-%m-%d %H:%M:%S"))
+            права = schema.поле(entry, "права")
+            if права:
+                target.chmod(int(str(права), 8))
+            отметка = schema.поле(entry, "время")
+            if отметка:
+                stamp = time.mktime(time.strptime(отметка, "%Y-%m-%d %H:%M:%S"))
                 os.utime(target, (stamp, stamp))
             created.append(target)
 
         marker_path = self.root / self.marker
         marker_path.write_text(json.dumps({
-            "сценарий": self.scenario.get("название", self.path.name),
+            "сценарий": schema.поле(self.scenario, "название", self.path.name),
             "файл_сценария": str(self.path),
             "разложено": time.strftime("%Y-%m-%d %H:%M:%S"),
             "файлов": len(created),
@@ -198,13 +203,14 @@ class Seeder:
         if not self.root.is_dir():
             return ok, [f"нет корневого каталога: {self.root}"]
         for entry in self.files:
-            target = self.root / entry["путь"]
-            kind = entry.get("тип", "текст")
+            путь = schema.поле(entry, "путь")
+            target = self.root / путь
+            kind = schema.тип_файла(schema.поле(entry, "тип", "текст"))
             if not target.exists():
-                bad.append(f"{entry['путь']}: файла нет")
+                bad.append(f"{путь}: файла нет")
                 continue
             if target.stat().st_size == 0:
-                bad.append(f"{entry['путь']}: файл пуст")
+                bad.append(f"{путь}: файл пуст")
                 continue
             signature = SIGNATURES.get(kind)
             if signature:
@@ -215,14 +221,15 @@ class Seeder:
                 with target.open("rb") as fh:
                     head = fh.read(len(signature))
                 if head != signature:
-                    bad.append(f"{entry['путь']}: сигнатура не похожа на {kind}")
+                    bad.append(f"{путь}: сигнатура не похожа на {kind}")
                     continue
-            if entry.get("права"):
+            права = schema.поле(entry, "права")
+            if права:
                 actual = oct(target.stat().st_mode & 0o777)[2:].rjust(3, "0")
-                if actual != str(entry["права"]).rjust(3, "0"):
-                    bad.append(f"{entry['путь']}: права {actual}, ожидались {entry['права']}")
+                if actual != str(права).rjust(3, "0"):
+                    bad.append(f"{путь}: права {actual}, ожидались {права}")
                     continue
-            ok.append(f"{entry['путь']}: {kind}")
+            ok.append(f"{путь}: {kind}")
         return ok, bad
 
     # --------------------------------------------------------------- очистка
@@ -230,19 +237,19 @@ class Seeder:
         """Удаляет раскладку. Без маркера и подтверждения ничего не трогает."""
         if not self.root.exists():
             if not quiet:
-                ui.error(f"каталога нет: {self.root}")
+                ui.error(t("seed.no_dir", путь=self.root, path=self.root))
             return False
         home = Path.home().resolve()
         resolved = self.root.resolve()
         if resolved == Path("/") or resolved == home or len(resolved.parts) <= 2:
-            ui.error(f"отказ: {resolved} слишком «высоко», удалять такое нельзя")
+            ui.error(t("seed.too_high", путь=resolved, path=resolved))
             return False
         if not (self.root / self.marker).exists():
-            ui.error(f"отказ: в {self.root} нет файла-маркера {self.marker} — "
-                     "это не раскладка квеста")
+            ui.error(t("seed.no_marker", путь=self.root, маркер=self.marker,
+                       path=self.root, marker=self.marker))
             return False
         if not confirmed:
-            ui.error("нужно подтверждение: добавьте --да")
+            ui.error(t("seed.need_confirm"))
             return False
         for item in self.root.rglob("*"):
             if item.is_file() or item.is_symlink():
@@ -255,20 +262,25 @@ class Seeder:
 
     # ------------------------------------------------------------- шпаргалка
     def cheatsheet(self) -> str:
+        имя_раскладки = schema.поле(self.scenario, "название", self.path.name)
         lines = [
-            f"# Шпаргалка ведущего: {self.scenario.get('название', self.path.name)}",
+            "# " + t("seed.cheatsheet_title", название=имя_раскладки, name=имя_раскладки),
             "",
-            f"Корень раскладки: {self.root}",
+            t("seed.cheatsheet_root", путь=self.root, path=self.root),
             "",
         ]
         for entry in self.files:
-            lines.append(f"## {entry['путь']}  ({entry.get('тип', 'текст')})")
-            if entry.get("права"):
-                lines.append(f"- права: {entry['права']}")
-            if entry.get("разгадка"):
-                lines.append(f"- разгадка: {entry['разгадка']}")
-            if entry.get("подсказка"):
-                lines.append(f"- намёк игрокам: {entry['подсказка']}")
+            lines.append(f"## {schema.поле(entry, 'путь')}  "
+                         f"({schema.тип_файла(schema.поле(entry, 'тип', 'текст'))})")
+            права = schema.поле(entry, "права")
+            if права:
+                lines.append(f'- {t("seed.cheatsheet_mode")}: {права}')
+            разгадка = schema.поле(entry, "разгадка")
+            if разгадка:
+                lines.append(f'- {t("seed.cheatsheet_solution")}: {разгадка}')
+            подсказка = schema.поле(entry, "подсказка")
+            if подсказка:
+                lines.append(f'- {t("seed.cheatsheet_hint")}: {подсказка}')
             lines.append("")
         return "\n".join(lines)
 
@@ -302,13 +314,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     cfg = config.load(args.config)
+    i18n.init(cfg)
     ui.init(cfg)
     # Раскладка ищется внутри активного пакета, если путь не задан явно.
     scenario = args.layout or config.data_file(cfg, "layout")
     константы = constants_mod.Constants(config.data_file(cfg, "constants"))
     if args.random_code and args.команда == "разложить":
         новый = константы.randomize_door_code()
-        print(ui.c(f"код двери на эту партию: {новый}", "жёлтый", "жирный"))
+        print(ui.c(t("seed.random_code", код=новый, code=новый), "жёлтый", "жирный"))
     # Куда раскладывать: ключ командной строки, затем sandbox_root из
     # настроек (там же начинают игроки), и лишь потом «корень» из раскладки.
     корень = args.root or cfg["terminal"].get("sandbox_root")
@@ -320,15 +333,16 @@ def main(argv: list[str] | None = None) -> int:
 
     command = args.команда
     if command == "разложить":
-        created = seeder.seed(overwrite=args.overwrite)
-        print(ui.box("РАСКЛАДКА ГОТОВА", [
-            f"сценарий: {seeder.scenario.get('название', scenario)}",
-            f"корень:   {seeder.root}",
-            f"файлов:   {len(created)}",
+        созданные = seeder.seed(overwrite=args.overwrite)
+        имя_раскладки = schema.поле(seeder.scenario, "название", str(scenario))
+        print(ui.box(t("seed.done_title"), [
+            t("seed.scenario", название=имя_раскладки, name=имя_раскладки),
+            t("seed.root", путь=seeder.root, path=seeder.root),
+            t("seed.count", число=len(созданные), count=len(созданные)),
             "",
-            "Проверить:   python3 run_seed.py проверить",
-            "Шпаргалка:   python3 run_seed.py шпаргалка",
-            "Терминал:    python3 run_terminal.py",
+            t("seed.next.verify"),
+            t("seed.next.cheatsheet"),
+            t("seed.next.terminal"),
         ], "зелёный"))
         return 0
 
@@ -338,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
             print(ui.c("  ok   ", "зелёный") + line)
         for line in bad:
             print(ui.c("  ОШИБКА ", "красный") + line)
-        print(f"\nитого: {len(ok)} в порядке, {len(bad)} с ошибками")
+        print("\n" + t("seed.total", хорошо=len(ok), плохо=len(bad), ok=len(ok), bad=len(bad)))
         return 1 if bad else 0
 
     if command == "шпаргалка":
@@ -346,7 +360,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.out:
             out = paths.resolve(args.out)
             out.write_text(text, encoding="utf-8")
-            print(f"шпаргалка сохранена: {out}")
+            print(t("seed.cheatsheet_saved", файл=out, file=out))
         else:
             print(text)
         return 0
@@ -354,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
     if command == "очистить":
         done = seeder.wipe(confirmed=args.yes)
         if done:
-            print(ui.c(f"раскладка удалена: {seeder.root}", "зелёный"))
+            print(ui.c(t("seed.wiped", путь=seeder.root, path=seeder.root), "зелёный"))
         return 0 if done else 1
 
     return 0

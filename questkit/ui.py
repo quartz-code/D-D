@@ -8,6 +8,8 @@ import shutil
 import sys
 import textwrap
 import time
+
+from .i18n import t
 from typing import Any, Iterable
 
 RESET = "\033[0m"
@@ -71,11 +73,11 @@ def say(text: str = "", *styles: str) -> None:
 def gm_note(text: str, enabled: bool = True) -> None:
     """Служебная пометка для ведущего — игрокам её можно не показывать."""
     if enabled:
-        print(c(f"[мастер] {text}", "тусклый", "жёлтый"))
+        print(c(f'{t("ui.gm_prefix")} {text}', "тусклый", "жёлтый"))
 
 
 def error(text: str) -> None:
-    print(c(f"[ошибка] {text}", "красный"))
+    print(c(f'{t("ui.error_prefix")} {text}', "красный"))
 
 
 def box(title: str, lines: Iterable[str], *styles: str) -> str:
@@ -141,21 +143,21 @@ def combat_alert(cfg: dict, room: str, action: str, description: str = "", note:
     ui_cfg = cfg.get("ui", {})
     lines = [
         "",
-        "!!!  ПРОТОКОЛ ПРИМЕНЁН  !!!",
+        t("combat.applied"),
         "",
-        f"комната:   {room}",
-        f"действие:  {action}",
+        f'{t("combat.room"):<11}{room}',
+        f'{t("combat.action"):<11}{action}',
     ]
     if description:
-        lines.append(f"суть:      {description}")
+        lines.append(f'{t("combat.detail"):<11}{description}')
     if note:
-        lines.append(f"пометка:   {note}")
+        lines.append(f'{t("combat.note"):<11}{note}')
     lines += [
         "",
-        "ОТЛОЖИТЕ НОУТБУК — СЦЕНА ПРОДОЛЖАЕТСЯ ЗА СТОЛОМ",
+        t("combat.put_laptop_down"),
         "",
     ]
-    frame_text = box("ВНИМАНИЕ: БОЕВАЯ СИТУАЦИЯ", lines)
+    frame_text = box(t("combat.title"), lines)
     frames = int(ui_cfg.get("flash_frames", 6) or 0)
     delay = float(ui_cfg.get("flash_delay_sec", 0.16) or 0)
     bell(cfg, 3)
@@ -170,29 +172,30 @@ def combat_alert(cfg: dict, room: str, action: str, description: str = "", note:
                 sys.stdout.write(f"\033[{height}A\033[J")  # вернуться и стереть кадр
     else:
         print(c(frame_text, "красный", "жирный"))
-    print(c(">>> состояние комплекса изменено пультом ведущего <<<", "красный", "жирный"))
+    print(c(t("combat.changed_by_gm"), "красный", "жирный"))
 
 
 def stage_banner(name: str, title: str, description: str = "") -> None:
     lines = [title]
     if description:
         lines += [""] + textwrap.wrap(description, width=min(70, width() - 6))
-    print(box(f"ЭТАП: {name}", lines, "голубой", "жирный"))
+    print(box(t("ui.stage", этап=name, stage=name), lines, "голубой", "жирный"))
 
 
 def event_line(event: dict[str, Any]) -> str:
     """Однострочное описание события из журнала — для «хвоста» в приложениях."""
     kind = event.get("тип", "?")
     if kind == "действие_подтверждено":
-        return (f"{event.get('время')} ▸ подтверждено: {event.get('комната')} / "
+        return (f"{event.get('время')} ▸ {t('event.confirmed')}: {event.get('комната')} / "
                 f"{event.get('действие')}")
     if kind == "действие_отменено":
-        return (f"{event.get('время')} ▸ отменено: {event.get('комната')} / "
+        return (f"{event.get('время')} ▸ {t('event.reverted')}: {event.get('комната')} / "
                 f"{event.get('действие')}")
     if kind == "этап":
-        return f"{event.get('время')} ▸ этап: {event.get('этап')} ({event.get('источник', '?')})"
+        return (f"{event.get('время')} ▸ {t('event.stage')}: {event.get('этап')} "
+                f"({event.get('источник', '?')})")
     if kind == "отношение":
-        return f"{event.get('время')} ▸ отношение разума: {event.get('отношение')}"
+        return f"{event.get('время')} ▸ {t('event.attitude')}: {event.get('отношение')}"
     return f"{event.get('время')} ▸ {kind}: " + ", ".join(
         f"{k}={v}" for k, v in event.items() if k not in ("время", "тип")
     )

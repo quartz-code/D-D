@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import paths, constants as constants_mod, ui
+from . import paths, constants as constants_mod, schema, ui
 
 #: Команды, чтение файла которыми считается «нашёл и прочитал».
 READ_COMMANDS = (
@@ -47,16 +47,16 @@ class Stages:
     # -------------------------------------------------------------- справочная
     @property
     def order(self) -> list[str]:
-        order = self.data.get("порядок")
+        order = schema.поле(self.data, "порядок")
         return list(order) if order else list(self.stages)
 
     @property
     def stages(self) -> dict[str, Any]:
-        return self.data.get("этапы", {})
+        return schema.поле(self.data, "этапы", {})
 
     @property
     def always(self) -> list[dict[str, str]]:
-        return list(self.data.get("всегда", []))
+        return list(schema.поле(self.data, "всегда", []))
 
     def first(self) -> str:
         order = self.order
@@ -69,7 +69,7 @@ class Stages:
         return self.stages.get(name, {})
 
     def title(self, name: str) -> str:
-        return self.info(name).get("название", name)
+        return str(schema.поле(self.info(name), "название", name))
 
     def next_in_order(self, name: str) -> str | None:
         order = self.order
@@ -84,49 +84,55 @@ class Stages:
         """Контекстный список команд текущего этапа (раздел 3 ТЗ)."""
         info = self.info(name)
         lines: list[str] = []
-        if info.get("описание"):
-            lines.append(info["описание"])
+        описание = schema.поле(info, "описание")
+        if описание:
+            lines.append(описание)
             lines.append("")
-        commands = info.get("команды", [])
+        commands = schema.поле(info, "команды", [])
         if commands:
             lines.append("НА ЭТОМ УЧАСТКЕ ДОСТУПНО:")
-            width = max((len(c.get("команда", "")) for c in commands), default=0)
+            width = max((len(str(schema.поле(c, "команда", ""))) for c in commands), default=0)
             for item in commands:
-                lines.append(f"  {item.get('команда', '').ljust(width)}  — {item.get('описание', '')}")
+                имя = str(schema.поле(item, "команда", ""))
+                lines.append(f"  {имя.ljust(width)}  — {schema.поле(item, 'описание', '')}")
         else:
             lines.append("НА ЭТОМ УЧАСТКЕ ОТДЕЛЬНЫХ КОМАНД НЕ ЗАРЕГИСТРИРОВАНО.")
         always = self.always
         if always:
             lines.append("")
             lines.append("ВСЕГДА ДОСТУПНО:")
-            width = max((len(c.get("команда", "")) for c in always), default=0)
+            width = max((len(str(schema.поле(c, "команда", ""))) for c in always), default=0)
             for item in always:
-                lines.append(f"  {item.get('команда', '').ljust(width)}  — {item.get('описание', '')}")
-        if gm and info.get("подсказка_мастеру"):
+                имя = str(schema.поле(item, "команда", ""))
+                lines.append(f"  {имя.ljust(width)}  — {schema.поле(item, 'описание', '')}")
+        заметка = schema.поле(info, "подсказка_мастеру")
+        if gm and заметка:
             lines.append("")
-            lines.append(f"[мастеру] {info['подсказка_мастеру']}")
+            lines.append(f"[мастеру] {заметка}")
         return ui.box(f"СПРАВКА · {self.title(name)}", lines, "голубой")
 
     def known_commands(self, name: str) -> list[str]:
         """Плоский список команд этапа — для автодополнения."""
-        items = list(self.info(name).get("команды", [])) + self.always
-        return [str(item.get("команда", "")).split()[0] for item in items if item.get("команда")]
+        items = list(schema.поле(self.info(name), "команды", [])) + self.always
+        имена = [str(schema.поле(item, "команда", "")) for item in items]
+        return [и.split()[0] for и in имена if и]
 
     # ------------------------------------------------------- сценарные команды
     def scripted(self, name: str, command: str) -> dict[str, Any] | None:
         """Ищет заготовленный ответ для команды на этом этапе."""
         text = command.strip()
-        for entry in self.info(name).get("сценарные_команды", []):
-            pattern = entry.get("шаблон")
+        for entry in schema.поле(self.info(name), "сценарные_команды", []):
+            pattern = schema.поле(entry, "шаблон")
             if pattern and re.search(pattern, text, re.IGNORECASE):
                 return entry
         return None
 
     def canned_text(self, entry: dict[str, Any], canned_dir: str | os.PathLike) -> str:
         """Читает заготовленный вывод. ``текст`` в JSON важнее, чем ``файл``."""
-        if entry.get("текст"):
-            return self._подставить(str(entry["текст"]))
-        name = entry.get("файл")
+        текст = schema.поле(entry, "текст")
+        if текст:
+            return self._подставить(str(текст))
+        name = schema.поле(entry, "файл")
         if not name:
             return ""
         path = paths.resolve(canned_dir) / name
@@ -152,17 +158,17 @@ class Stages:
         """
         if not success:
             return None
-        rule = self.info(name).get("переход") or {}
-        target = rule.get("следующий")
+        rule = schema.поле(self.info(name), "переход") or {}
+        target = schema.поле(rule, "следующий")
         if not target:
             return None
         text = command.strip()
 
-        for pattern in rule.get("при_команде", []):
+        for pattern in schema.поле(rule, "при_команде", []):
             if pattern and re.search(pattern, text, re.IGNORECASE):
                 return target
 
-        files = rule.get("при_чтении_файла", [])
+        files = schema.поле(rule, "при_чтении_файла", [])
         if files and _READ_RE.search(text):
             for filename in files:
                 base = Path(filename).name
@@ -172,11 +178,11 @@ class Stages:
 
     def transition_on_event(self, name: str, event: dict[str, Any]) -> str | None:
         """Переход по подтверждённому событию комплекса (``при_событии``)."""
-        rule = self.info(name).get("переход") or {}
-        target = rule.get("следующий")
+        rule = schema.поле(self.info(name), "переход") or {}
+        target = schema.поле(rule, "следующий")
         if not target:
             return None
-        wanted = rule.get("при_событии") or []
+        wanted = schema.поле(rule, "при_событии") or []
         marker = f"{event.get('комната')}/{event.get('действие')}"
         if event.get("действие") in wanted or marker in wanted:
             return target

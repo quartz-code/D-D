@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from . import config, paths
+from .i18n import t
 
 #: Значения состояния по умолчанию (используются при первом запуске).
 DEFAULT_STATE: dict[str, Any] = {

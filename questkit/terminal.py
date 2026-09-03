@@ -25,6 +25,8 @@ from typing import Any
 from . import (config, features, journal as journal_mod, pack as pack_mod, paths,
                constants as constants_mod, session as session_mod, ui)
 from .world import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
+from . import i18n
+from .i18n import t
 from .stages import Stages
 from .watcher import Наблюдатель, печать_поверх_ввода
 
@@ -62,6 +64,7 @@ class TerminalApp:
             self.cfg["terminal"]["real_execution"] = False
         if args.quiet_gm:
             self.cfg["terminal"]["show_gm_notes"] = False
+        i18n.init(self.cfg)
         ui.init(self.cfg)
 
         self.session, self.events = session_mod.open_session(self.cfg)
@@ -101,8 +104,7 @@ class TerminalApp:
         текущий = self.session.get("этап")
         if not текущий or not self.stages.exists(текущий):
             if текущий:
-                ui.gm_note(f"этап «{текущий}» не найден в этом пакете — "
-                           f"партия начата заново")
+                ui.gm_note(t("terminal.stage_foreign", этап=текущий, stage=текущий))
             self.session.set("этап", self.stages.first())
 
     # ------------------------------------------------------------------ утилиты
@@ -158,7 +160,8 @@ class TerminalApp:
     # ------------------------------------------------------------------- этапы
     def set_stage(self, name: str, source: str = "мастер") -> None:
         if not self.stages.exists(name):
-            ui.error(f"нет такого этапа: {name}. Доступные: {', '.join(self.stages.order)}")
+            ui.error(t("terminal.gm.no_stage", этап=name, stage=name,
+                       список=", ".join(self.stages.order), list=", ".join(self.stages.order)))
             return
         self.session.set("этап", name)
         self.events.append("этап", этап=name, источник=source)
@@ -177,7 +180,7 @@ class TerminalApp:
     def gm_command(self, line: str) -> None:
         parts = line.split()[1:]
         if not parts or parts[0] in ("помощь", "справка", "?"):
-            print(ui.box("ПУЛЬТ ВЕДУЩЕГО (игрокам не показывать)", GM_HELP, "жёлтый"))
+            print(ui.box(t("terminal.gm.help_title"), GM_HELP, "жёлтый"))
             return
         head, rest = parts[0], parts[1:]
 
@@ -188,7 +191,7 @@ class TerminalApp:
                 f"реальное выполнение: "
                 f"{'да' if self.cfg['terminal']['real_execution'] else 'нет (только заготовки)'}",
             ]
-            print(ui.box("СОСТОЯНИЕ ПАРТИИ",
+            print(ui.box(t("terminal.party_state"),
                          session_mod.describe(self.session, extra).splitlines(), "жёлтый"))
             print(summary(self.complex))
         elif head == "этапы":
@@ -196,7 +199,7 @@ class TerminalApp:
             for name in self.stages.order:
                 mark = "▶" if name == self.stage else " "
                 lines.append(f"{mark} {name:<16} {self.stages.title(name)}")
-            print(ui.box("ЭТАПЫ", lines, "жёлтый"))
+            print(ui.box(t("terminal.stages_title"), lines, "жёлтый"))
         elif head == "этап":
             if not rest:
                 self.note(f"текущий этап: {self.stage}")
@@ -228,7 +231,7 @@ class TerminalApp:
         elif head == "сброс":
             self.reset_complex()
         else:
-            ui.error(f"неизвестная команда пульта: {head} (см. «мастер помощь»)")
+            ui.error(t("terminal.gm.unknown", команда=head, command=head))
 
     def confirm_action(self, rest: list[str]) -> None:
         """Раздел 6.2 ТЗ: применение действия только с подтверждением ведущего."""
@@ -245,10 +248,11 @@ class TerminalApp:
                 print(f"  {meta['описание']}")
             if meta.get("последствие"):
                 print(f"  последствие: {meta['последствие']}")
-            answer = input(ui.c(f"Применить? Введите «{CONFIRM_WORD}»: ", "жёлтый"))
+            answer = input(ui.c(t("terminal.gm.confirm_prompt", слово=CONFIRM_WORD,
+                                          word=CONFIRM_WORD), "жёлтый"))
             event = self.complex.apply_action(room, action, answer, note=note)
         except ConfirmationRequired as exc:
-            self.note(f"отменено: {exc}")
+            self.note(t("terminal.gm.cancelled", причина=exc, reason=exc))
             return
         except KeyError as exc:
             ui.error(f"нет такой комнаты или действия: {exc}")
@@ -269,7 +273,7 @@ class TerminalApp:
             answer = input(ui.c(f"Отменить {rest[0]}/{rest[1]}? Введите «{CONFIRM_WORD}»: ", "жёлтый"))
             event = self.complex.revert_action(rest[0], rest[1], answer)
         except ConfirmationRequired as exc:
-            self.note(f"отменено: {exc}")
+            self.note(t("terminal.gm.cancelled", причина=exc, reason=exc))
             return
         except KeyError as exc:
             ui.error(f"нет такой комнаты или действия: {exc}")
@@ -282,7 +286,7 @@ class TerminalApp:
             answer = input(ui.c(f"Сбросить все комнаты? Введите «{CONFIRM_WORD}»: ", "жёлтый"))
             count = self.complex.reset(answer)
         except ConfirmationRequired as exc:
-            self.note(f"отменено: {exc}")
+            self.note(t("terminal.gm.cancelled", причина=exc, reason=exc))
             return
         self.session.set("боевая_готовность", False)
         self.events.append("сброс_комплекса", комнат=count)
@@ -314,13 +318,13 @@ class TerminalApp:
             destination = candidate if candidate.is_absolute() else self.cwd / candidate
         destination = Path(os.path.normpath(destination))
         if not destination.is_dir():
-            self.out(f"cd: нет такого каталога: {target}")
+            self.out(t("terminal.cd_no_dir", путь=target, path=target))
             return
         if self.cfg["terminal"].get("restrict_to_root"):
             try:  # разрешён только корень квеста и всё, что внутри него
                 destination.resolve().relative_to(self.root.resolve())
             except ValueError:
-                self.out("cd: выход за пределы объекта заблокирован.")
+                self.out(t("terminal.cd_outside"))
                 self.note("restrict_to_root=true — переход наружу запрещён")
                 return
         self.previous_cwd, self.cwd = self.cwd, destination
@@ -328,7 +332,7 @@ class TerminalApp:
     def run_real(self, command: str) -> bool:
         """Выполняет команду по-настоящему. Возвращает True при коде выхода 0."""
         if not self.cfg["terminal"].get("real_execution", True):
-            self.out("ОТКАЗАНО: терминал работает в режиме заготовленных ответов.")
+            self.out(t("terminal.denied_canned_only"))
             self.note("real_execution=false — реальные команды не выполняются")
             return False
         shell = self.cfg["terminal"].get("shell", "/bin/sh")
@@ -378,7 +382,7 @@ class TerminalApp:
         """Подставляет заготовленный вывод (раздел 3 ТЗ)."""
         delay = float(entry.get("задержка", 0) or 0)
         if delay:
-            print(ui.c("обработка запроса…", "тусклый"))
+            print(ui.c(t("terminal.processing"), "тусклый"))
             time.sleep(delay)
         text = self.stages.canned_text(entry, self.canned_dir)
         self.out(text)
@@ -408,14 +412,14 @@ class TerminalApp:
             ]
             if active:
                 lines.append("")
-                lines.append("ПРИМЕНЁННЫЕ МЕРЫ:")
+                lines.append(t("terminal.applied_measures"))
                 lines += [f"  {room}: {action}" for room, action in active]
-            print(ui.box("СОСТОЯНИЕ УЧАСТКА", lines, "голубой"))
+            print(ui.box(t("terminal.area_state"), lines, "голубой"))
             return True
         if word in LINK_WORDS:
             path = Path(self.canned_dir) / "link.txt"
             self.out(path.read_text(encoding="utf-8").rstrip("\n") if path.exists()
-                     else "Канал связи: запустите python3 run_chat.py во второй консоли.")
+                     else t("terminal.link_fallback"))
             return True
         if word == "cd":
             self.change_dir(command)
@@ -430,23 +434,22 @@ class TerminalApp:
         lines = [
             self.pack.надпись("terminal", "greeting"),
             "",
-            f"этап:     {self.stage} — {info.get('название', '')}",
-            f"каталог:  {self.cwd}",
+            f'{t("terminal.stage_label"):<10}{self.stage} — {self.stages.title(self.stage)}',
+            f'{t("terminal.dir_label"):<10}{self.cwd}',
             "",
-            "«помощь» — команды, доступные на этом участке.",
-            "«связь»  — выход на голосовой канал собеседника.",
-            "«выход»  — отключиться.",
+            t("terminal.greeting.help"),
+            t("terminal.greeting.link"),
+            t("terminal.greeting.exit"),
         ]
         print(ui.box(self.pack.надпись("terminal", "title"), lines, "зелёный"))
         if not self.root.is_dir():
-            self.note(f"каталог квеста не найден: {self.root} — разложите файлы: "
-                      f"python3 run_seed.py разложить")
+            self.note(t("terminal.quest_dir_missing", путь=self.root, path=self.root))
 
     def run(self) -> int:
         self.greet()
         if self.watcher is not None:
             self.watcher.запустить()
-            self.note("живое оповещение включено")
+            self.note(t("terminal.live_alerts_on"))
         while True:
             self.drain_events()
             try:
@@ -468,12 +471,12 @@ class TerminalApp:
             except SystemExit:
                 break
             if self.is_blocked(command):
-                self.out("ОТКАЗАНО. Команда запрещена регламентом объекта.")
+                self.out(t("terminal.denied_blocked"))
                 self.note(f"команда заблокирована списком blocked_patterns: {command}")
                 self.journal.команда(command, "отклонена", False, self.stage)
                 continue
             if self.touches_project(command):
-                self.out("ОТКАЗАНО. Обращение к служебному разделу вне вашей формы допуска.")
+                self.out(t("terminal.denied_service"))
                 self.note(f"попытка добраться до файлов квеста: {command}")
                 self.events.append("попытка_подсмотреть", команда=command[:200])
                 self.journal.команда(command, "отклонена", False, self.stage)
@@ -489,7 +492,7 @@ class TerminalApp:
             self.maybe_advance(command, success)
         if self.watcher is not None:
             self.watcher.остановить()
-        self.note("терминал закрыт")
+        self.note(t("terminal.closed"))
         return 0
 
 

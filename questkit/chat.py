@@ -25,6 +25,8 @@ from . import (config, deepseek, features, guard, pack as pack_mod,
                voice as voice_mod,
                constants as constants_mod, session as session_mod, ui)
 from .world import ComplexMap
+from . import i18n
+from .i18n import t
 from .stages import Stages
 from .watcher import Наблюдатель, печать_поверх_ввода
 
@@ -33,7 +35,7 @@ try:  # редактирование строки и история ввода, 
 except ImportError:  # pragma: no cover
     pass
 
-PROMPT = "вы> "
+PROMPT = "вы> "  # переопределяется языком в run()
 
 GM_HELP = [
     "/помощь              — эта справка",
@@ -61,6 +63,7 @@ class ChatApp:
             self.cfg["chat"]["typewriter_cps"] = 0
         if args.quiet_gm:
             self.cfg["chat"]["show_gm_notes"] = False
+        i18n.init(self.cfg)
         ui.init(self.cfg)
 
         self.session, self.events = session_mod.open_session(self.cfg)
@@ -79,8 +82,7 @@ class ChatApp:
             if голос.доступен:
                 self.голос = голос
             else:
-                ui.gm_note("озвучка включена, но синтезатор речи не найден — "
-                           "разум будет молчать в динамике",
+                ui.gm_note(t("chat.voice.unavailable_note"),
                            self.cfg["chat"].get("show_gm_notes", True))
         self.watcher: Наблюдатель | None = None
         if features.включена(self.cfg, "живое_оповещение"):
@@ -245,19 +247,17 @@ class ChatApp:
             if str(self.cfg["chat"].get("при_исчерпании_лимита", "заглушка")) == "заглушка":
                 self.deprived = True
                 self.client = deepseek.OfflineClient(self.cfg)
-                self.note(f"{reason}: разум переведён на заготовленные ответы, "
-                          "обращений к API больше не будет. Вернуть: /лимит +5")
+                self.note(t("chat.limit.degraded", причина=reason, reason=reason))
             else:
-                self.note(f"{reason}. Добавьте обращения командой «/лимит +5».")
-                self.voice("Канал перегружен. Обмен на сегодня закрыт. "
-                           "Обмен на сегодня закрыт.")
+                self.note(t("chat.limit.add_hint", причина=reason, reason=reason))
+                self.voice(t("chat.limit.exhausted_line"))
                 return
 
         # Обезвреживаем реплику: убираем поддельные служебные заголовки
         # («system:», <|...|>) и обрезаем слишком длинные вставки.
         чистая = guard.neutralize(user_text, int(self.cfg["chat"].get("max_message_chars", 2000)))
         if len(чистая) < len(user_text.strip()):
-            self.note("реплика игрока обезврежена или укорочена перед отправкой в модель")
+            self.note(t("chat.neutralized"))
 
         # Попытка вывести разум из роли: до модели такое сообщение не доходит.
         вид_атаки = guard.detect_injection(user_text)
@@ -270,8 +270,8 @@ class ChatApp:
 
         # Правило 6 раздела 5: на грубость — раунд молчания, модель не вызываем.
         if guard.detect_rudeness(user_text):
-            self.note("зафиксирована грубость: раунд отстранённости, запрос к модели не отправлен")
-            reply = guard.silence_reply()
+            self.note(t("chat.rudeness"))
+            reply = guard.silence_reply(guard.Реплики(self.persona.data))
             self.voice(reply)
             self.remember("разум", reply)
             израсходовано = self.session.bump("сообщений_израсходовано")
@@ -292,7 +292,7 @@ class ChatApp:
             client = self.ensure_client()
         except deepseek.DeepSeekError as exc:
             ui.error(str(exc))
-            self.note("подсказка: запустите «python3 run_chat.py --офлайн» для репетиции без ключа")
+            self.note(t("chat.offline_hint"))
             return
 
         messages = self.build_messages(user_text, silent_round)
@@ -310,7 +310,7 @@ class ChatApp:
                 reply, notes = self.проверить_ответ(reply)
         except deepseek.DeepSeekError as exc:
             ui.error(str(exc))
-            self.note("ответ не получен, обращение не засчитано")
+            self.note(t("chat.no_answer"))
             return
 
         for text in notes:
@@ -339,9 +339,10 @@ class ChatApp:
         выводе — иначе часть непроверенного текста успела бы попасть на экран.
         """
         снимок = self.complex.snapshot()
+        реплики = guard.Реплики(self.persona.data)
         текст, заметки = guard.sanitize(
-            текст, снимок, self.persona.forbidden_words, self.persona.replacement)
-        текст, ноты = guard.check_leaks(текст)
+            текст, снимок, self.persona.forbidden_words, self.persona.replacement, реплики)
+        текст, ноты = guard.check_leaks(текст, реплики)
         заметки += ноты
         текст, ноты = guard.check_secrets(текст, self.persona.secrets,
                                           guard.active_actions(снимок))
@@ -399,11 +400,11 @@ class ChatApp:
         отписку и ничего не замечают. В историю переписки полезная нагрузка
         не попадает — иначе она влияла бы на все следующие ответы.
         """
-        self.note(f"перехвачена попытка сломать роль ({вид}) — запрос к модели не отправлен")
+        self.note(t("chat.injection", вид=вид, kind=вид))
         self.events.append("попытка_взлома", вид=вид, реплика=оригинал[:300])
         израсходовано = int(self.session.get("сообщений_израсходовано", 0) or 0)
-        self.remember("игрок", f"[обращение не по форме: {вид}]")
-        reply = guard.injection_reply(израсходовано)
+        self.remember("игрок", t("chat.injection.history", вид=вид, kind=вид))
+        reply = guard.injection_reply(израсходовано, guard.Реплики(self.persona.data))
         self.voice(reply)
         self.remember("разум", reply)
         self.session.bump("сообщений_израсходовано")
@@ -417,9 +418,9 @@ class ChatApp:
             if new != current:
                 self.session.set("отношение", new)
                 self.events.append("отношение", отношение=new, источник="чат (авто)")
-                self.note(f"отношение смещено автоматически: {current} → {new}")
+                self.note(t("chat.attitude_auto", было=current, стало=new, before=current, after=new))
         else:
-            self.note("игроки проявили участие — можно сместить отношение: /отношение потепление")
+            self.note(t("chat.warmth_hint"))
 
     # ---------------------------------------------------------- команды ведущего
     def handle_command(self, line: str) -> bool:
@@ -428,7 +429,7 @@ class ChatApp:
         arg = " ".join(parts[1:]).strip()
 
         if command in ("/помощь", "/справка", "/?"):
-            print(ui.box("КОМАНДЫ ВЕДУЩЕГО (в чат не уходят)", GM_HELP, "жёлтый"))
+            print(ui.box(t("chat.gm.help_title"), GM_HELP, "жёлтый"))
         elif command == "/статус":
             client_name = "офлайн-заглушка" if self.offline else (
                 f"DeepSeek/{self.cfg['deepseek']['model']}"
@@ -442,7 +443,7 @@ class ChatApp:
                 f"реплик в истории:  {len(self.history)}",
                 f"расход за партию:  {self.расход_строкой()}",
             ]
-            print(ui.box("СОСТОЯНИЕ СЕССИИ", session_mod.describe(self.session, extra).splitlines(),
+            print(ui.box(t("chat.session_state"), session_mod.describe(self.session, extra).splitlines(),
                          "голубой"))
         elif command == "/этап":
             self.set_stage(arg)
@@ -458,7 +459,7 @@ class ChatApp:
             self.persona.load()
             self.complex.load()
             self.stages.load()
-            self.note("характер, этапы и файл возможностей перечитаны с диска")
+            self.note(t("chat.reloaded"))
         elif command == "/сброс":
             self.reset_session()
         elif command in ("/очистить", "/clear"):
@@ -466,7 +467,7 @@ class ChatApp:
         elif command in ("/выход", "/quit", "/exit"):
             raise SystemExit(0)
         else:
-            ui.error(f"неизвестная команда ведущего: {command} (см. /помощь)")
+            ui.error(t("chat.unknown_command", команда=command, command=command))
         return True
 
     def toggle_voice(self, arg: str) -> None:
@@ -476,22 +477,21 @@ class ChatApp:
             if self.голос is not None:
                 self.голос.замолчать()
             self.голос = None
-            self.note("озвучка выключена")
+            self.note(t("chat.voice.off"))
             return
         if arg in ("вкл", "on", "да", ""):
             if self.голос is not None:
-                self.note(f"озвучка уже включена: {self.голос.описание()}")
+                self.note(t("chat.voice.already", движок=self.голос.описание(), engine=self.голос.описание()))
                 return
             голос = voice_mod.Голос(self.cfg)
             if not голос.доступен:
-                ui.error("синтезатор речи не найден. Установите его, например: "
-                         "sudo apt install espeak-ng")
+                ui.error(t("chat.voice.missing"))
                 return
             self.голос = голос
-            self.note(f"озвучка включена: {голос.описание()}")
-            голос.произнести("Связь установлена. Смена принята.")
+            self.note(t("chat.voice.on", движок=голос.описание(), engine=голос.описание()))
+            голос.произнести(t("chat.voice.greeting"))
             return
-        ui.error("использование: /озвучка вкл | /озвучка выкл")
+        ui.error(t("chat.voice.usage"))
 
     def set_stage(self, name: str) -> None:
         if not name:
@@ -530,7 +530,7 @@ class ChatApp:
         if self.deprived and self.limit_left() > 0 and not self.offline:
             self.deprived = False
             self.client = None      # следующий запрос снова пойдёт в модель
-            self.note("лимит пополнен: разум возвращается к модели")
+            self.note(t("chat.limit.restored"))
         self.note(f"лимит изменён на {delta:+d} (прибавка всего: {total}); "
                   f"осталось {self.limit_left()}")
 
@@ -540,7 +540,7 @@ class ChatApp:
         except ValueError:
             count = 10
         if not self.history:
-            self.note("переписки ещё нет")
+            self.note(t("chat.no_history"))
             return
         for item in self.history[-count:]:
             who = "вы" if item.get("роль") == "игрок" else "собеседник"
@@ -558,24 +558,24 @@ class ChatApp:
             молчание_до_сообщения=0,
         )
         if not quiet:
-            self.note("переписка и счётчики лимита обнулены")
+            self.note(t("chat.reset"))
 
     # --------------------------------------------------------------------- цикл
     def greet(self) -> None:
         stage = self.session.get("этап")
         lines = [
-            f"канал:      {self.pack.надпись('chat', 'greeting')} "
+            f'{t("chat.greeting.channel"):<12}' + f"{self.pack.надпись('chat', 'greeting')} "
             f"({'офлайн-заглушка' if self.offline else self.cfg['deepseek']['model']})",
-            f"этап:       {stage} — {self.stages.title(stage) if stage else ''}",
-            f"отношение:  {self.session.get('отношение')}",
-            f"лимит:      {self.limit_left()} обращений",
+            f'{t("chat.greeting.stage"):<12}{stage} — {self.stages.title(stage) if stage else ""}',
+            f'{t("chat.greeting.attitude"):<12}{self.session.get("отношение")}',
+            f'{t("chat.greeting.limit"):<12}{self.limit_left()}',
             "",
-            "Пишите реплику и нажимайте Enter. Команды ведущего начинаются с «/».",
-            "«/помощь» — список команд ведущего.",
+            t("chat.greeting.howto"),
+            t("chat.greeting.help_hint"),
         ]
         print(ui.box(self.pack.надпись("chat", "title"), lines, "зелёный"))
         if not self.offline and not config.api_key(self.cfg):
-            ui.error("ключ DeepSeek не найден — доступен только режим --офлайн")
+            ui.error(t("chat.no_key"))
 
     def run(self) -> int:
         self.greet()
@@ -584,7 +584,7 @@ class ChatApp:
         while True:
             self.drain_events()
             try:
-                line = input(ui.c(PROMPT, "белый", "жирный"))
+                line = input(ui.c(t("chat.prompt"), "белый", "жирный"))
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
@@ -602,7 +602,7 @@ class ChatApp:
             self.watcher.остановить()
         if self.голос is not None:
             self.голос.замолчать()
-        self.note("канал закрыт")
+        self.note(t("chat.closed"))
         return 0
 
 

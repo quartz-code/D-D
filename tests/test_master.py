@@ -129,8 +129,8 @@ class TestИменаКоманд(MasterTestCase):
 
     def test_каждая_команда_из_справки_отзывается(self):
         """Опечатка в имени команды не должна выясняться посреди партии."""
-        from questkit.master import HELP
-        for строка in HELP:
+        from questkit.master import справка
+        for строка in справка():
             имя = строка.split()[0]
             with self.subTest(команда=имя):
                 # Команды подтверждения спрашивают ведущего — отвечаем «нет».

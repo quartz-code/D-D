@@ -20,9 +20,12 @@ import argparse
 import sys
 
 from . import (config, doctor, features, guard, journal as journal_mod,
+               pack as pack_mod,
                persona as persona_mod, constants as constants_mod,
                session as session_mod, ui)
 from .world import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
+from . import i18n
+from .i18n import t
 from .stages import Stages
 
 try:
@@ -30,22 +33,11 @@ try:
 except ImportError:  # pragma: no cover
     pass
 
-HELP = [
-    "комнаты                          — список комнат и их состояние",
-    "действия <комната>               — что можно применить в комнате",
-    "подтвердить <комната> <действие> — ПРИМЕНИТЬ действие (спросит подтверждение)",
-    "откат <комната> <действие>       — отменить применённое действие",
-    "сброс                            — вернуть все комнаты в «неактивно»",
-    "этап [имя|дальше]                — текущий этап партии (видят все окна)",
-    "отношение [имя]                  — отношение разума к игрокам",
-    "статус                           — сводка по партии",
-    "журнал [N]                       — последние N событий",
-    "проверка [--живой]               — всё ли готово к партии",
-    "отчёт [файл]                     — собрать отчёт о партии в Markdown",
-    "дополнения                       — какие необязательные возможности включены",
-    "помощь                           — эта справка",
-    "выход                            — закрыть пульт",
-]
+def справка() -> list[str]:
+    """Список команд пульта на языке интерфейса."""
+    return [t(f"master.help.{ключ}") for ключ in (
+        "rooms", "actions", "confirm", "revert", "reset", "stage", "attitude",
+        "status", "log", "check", "report", "features", "help", "exit")]
 
 
 class MasterConsole:
@@ -53,6 +45,7 @@ class MasterConsole:
 
     def __init__(self, cfg: dict):
         self.cfg = cfg
+        i18n.init(cfg)
         ui.init(cfg)
         self.session, self.events = session_mod.open_session(cfg)
         self.constants = constants_mod.Constants(config.data_file(cfg, "constants"))
@@ -65,7 +58,7 @@ class MasterConsole:
     # ------------------------------------------------------------------ команды
     def cmd_rooms(self) -> int:
         self.complex.load()
-        print(ui.box("ВОЗМОЖНОСТИ КОМПЛЕКСА", summary(self.complex).splitlines(), "жёлтый"))
+        print(ui.box(t("master.world_title"), summary(self.complex).splitlines(), "жёлтый"))
         return 0
 
     def cmd_actions(self, room: str) -> int:
@@ -106,15 +99,16 @@ class MasterConsole:
             f"последствие:  {meta.get('последствие', '—')}",
             f"боевое:       {'ДА — будет подан боевой сигнал' if self.complex.is_combat(action) else 'нет'}",
         ]
-        print(ui.box("ПОДТВЕРЖДЕНИЕ СОБЫТИЯ", lines, "жёлтый", "жирный"))
+        print(ui.box(t("master.confirm_title"), lines, "жёлтый", "жирный"))
 
         answer = CONFIRM_WORD if auto_yes else input(
-            ui.c(f"Применить? Введите «{CONFIRM_WORD}»: ", "жёлтый", "жирный")
+            ui.c(t("master.confirm_prompt", слово=CONFIRM_WORD, word=CONFIRM_WORD),
+                 "жёлтый", "жирный")
         )
         try:
             event = self.complex.apply_action(room, action, answer, note=note)
         except ConfirmationRequired as exc:
-            print(ui.c(f"НЕ ПРИМЕНЕНО: {exc}", "тусклый"))
+            print(ui.c(t("master.not_applied", причина=exc, reason=exc), "тусклый"))
             return 1
 
         self.events.append_event(event)
@@ -122,18 +116,20 @@ class MasterConsole:
         if event.get("боевое"):
             ui.combat_alert(self.cfg, room, action, event.get("описание", ""), note)
         else:
-            print(ui.c(f"Применено (не боевое): {room} / {action}", "зелёный", "жирный"))
+            print(ui.c(t("master.applied_noncombat", комната=room, действие=action, room=room,
+                        action=action), "зелёный", "жирный"))
         return 0
 
     def cmd_revert(self, room: str, action: str, auto_yes: bool = False) -> int:
         self.complex.load()
         answer = CONFIRM_WORD if auto_yes else input(
-            ui.c(f"Отменить {room}/{action}? Введите «{CONFIRM_WORD}»: ", "жёлтый")
+            ui.c(t("master.revert_prompt", комната=room, действие=action, слово=CONFIRM_WORD,
+                   room=room, action=action, word=CONFIRM_WORD), "жёлтый")
         )
         try:
             event = self.complex.revert_action(room, action, answer)
         except ConfirmationRequired as exc:
-            print(ui.c(f"НЕ ОТМЕНЕНО: {exc}", "тусклый"))
+            print(ui.c(t("master.not_reverted", причина=exc, reason=exc), "тусклый"))
             return 1
         except KeyError as exc:
             ui.error(f"нет такой комнаты или действия: {exc}")
@@ -141,21 +137,22 @@ class MasterConsole:
         self.events.append_event(event)
         if not self.complex.all_active():
             self.session.set("боевая_готовность", False)
-        print(ui.c(f"Отменено: {room} / {action}", "зелёный"))
+        print(ui.c(t("master.reverted", комната=room, действие=action, room=room, action=action),
+                   "зелёный"))
         return 0
 
     def cmd_reset(self, auto_yes: bool = False) -> int:
         answer = CONFIRM_WORD if auto_yes else input(
-            ui.c(f"Сбросить состояние ВСЕХ комнат? Введите «{CONFIRM_WORD}»: ", "жёлтый")
+            ui.c(t("master.reset_prompt", слово=CONFIRM_WORD, word=CONFIRM_WORD), "жёлтый")
         )
         try:
             count = self.complex.reset(answer)
         except ConfirmationRequired as exc:
-            print(ui.c(f"НЕ СБРОШЕНО: {exc}", "тусклый"))
+            print(ui.c(t("master.not_reset", причина=exc, reason=exc), "тусклый"))
             return 1
         self.session.set("боевая_готовность", False)
         self.events.append("сброс_комплекса", комнат=count)
-        print(ui.c(f"Состояние комплекса сброшено (затронуто комнат: {count})", "зелёный"))
+        print(ui.c(t("master.reset_done", число=count, count=count), "зелёный"))
         return 0
 
     def cmd_stage(self, name: str = "") -> int:
@@ -208,7 +205,7 @@ class MasterConsole:
             f"файл возможностей: {self.complex.path}",
             f"применённых мер:   {len(active)}",
         ]
-        print(ui.box("СВОДКА ПАРТИИ", session_mod.describe(self.session, extra).splitlines(),
+        print(ui.box(t("master.summary_title"), session_mod.describe(self.session, extra).splitlines(),
                      "жёлтый"))
         if active:
             for room, action in active:
@@ -219,7 +216,7 @@ class MasterConsole:
         """Отчёт о партии из журнала терминала, переписки и событий."""
         if путь:
             файл = journal_mod.сохранить(self.cfg, путь)
-            print(ui.c(f"отчёт сохранён: {файл}", "зелёный"))
+            print(ui.c(t("master.report_saved", файл=файл, file=файл), "зелёный"))
         else:
             print(journal_mod.собрать(self.cfg))
         return 0
@@ -237,9 +234,9 @@ class MasterConsole:
             limit = 15
         events = self.events.all()[-limit:]
         if not events:
-            print("журнал пуст")
+            print(t("master.empty_log"))
             return 0
-        print(ui.box("ЖУРНАЛ СОБЫТИЙ", [ui.event_line(e) for e in events], "жёлтый"))
+        print(ui.box(t("master.events_title"), [ui.event_line(e) for e in events], "жёлтый"))
         return 0
 
     # ---------------------------------------------------------------- диспетчер
@@ -248,7 +245,7 @@ class MasterConsole:
             return self.cmd_status()
         head, rest = words[0].lower(), words[1:]
         if head in ("помощь", "справка", "?", "help"):
-            print(ui.box("ПУЛЬТ ВЕДУЩЕГО", HELP, "жёлтый"))
+            print(ui.box(t("master.title"), справка(), "жёлтый"))
             return 0
         if head in ("комнаты", "возможности", "rooms"):
             return self.cmd_rooms()
@@ -280,9 +277,9 @@ class MasterConsole:
         if head in ("отчёт", "отчет"):
             return self.cmd_report(rest[0] if rest else "")
         if head in ("дополнения", "возможности_квеста"):
-            print(ui.box("ДОПОЛНИТЕЛЬНЫЕ ВОЗМОЖНОСТИ",
+            print(ui.box(t("master.features_title"),
                          features.описание_состояния(self.cfg)
-                         + ["", "Изменить: python3 run_launcher.py"], "жёлтый"))
+                         + ["", t("master.change_features")], "жёлтый"))
             return 0
         if head in ("проверка", "готовность"):
             живой = any(a in ("--живой", "--live") for a in rest)
@@ -291,23 +288,24 @@ class MasterConsole:
             # В интерактивном пульте выход перехватывает цикл; здесь — чтобы
             # команда из справки не выглядела неизвестной при разовом запуске.
             return 0
-        ui.error(f"неизвестная команда: {head} (см. «помощь»)")
+        ui.error(t("master.unknown", команда=head, command=head))
         return 1
 
     def run_interactive(self) -> int:
         lines = [
-            "Пульт ведущего. Игрокам это окно не показывают.",
+            t("master.intro.1"),
             "",
-            "Действия комплекса применяются ТОЛЬКО отсюда и только после",
-            f"явного подтверждения словом «{CONFIRM_WORD}».",
+            t("master.intro.2"),
+            t("master.intro.3", слово=CONFIRM_WORD, word=CONFIRM_WORD),
             "",
-            "«помощь» — список команд, «выход» — закрыть пульт.",
+            t("master.intro.4"),
         ]
-        print(ui.box("КОМПЛЕКС объект-7 · ПУЛЬТ ВЕДУЩЕГО", lines, "жёлтый", "жирный"))
+        print(ui.box(f"{pack_mod.load(self.cfg).name} · {t('master.title')}",
+                     lines, "жёлтый", "жирный"))
         self.cmd_status()
         while True:
             try:
-                line = input(ui.c("пульт> ", "жёлтый", "жирный")).strip()
+                line = input(ui.c(t("master.prompt"), "жёлтый", "жирный")).strip()
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
@@ -320,7 +318,7 @@ class MasterConsole:
             except (EOFError, KeyboardInterrupt):
                 print()
                 continue
-        print(ui.c("пульт закрыт", "тусклый"))
+        print(ui.c(t("master.closed"), "тусклый"))
         return 0
 
 
