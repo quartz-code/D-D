@@ -19,7 +19,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import (config, guard, persona as persona_mod, quest as quest_mod,
+from . import (config, doctor, guard, persona as persona_mod, quest as quest_mod,
                session as session_mod, ui)
 from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
@@ -39,6 +39,7 @@ HELP = [
     "отношение [имя]                  — отношение разума к игрокам",
     "статус                           — сводка по партии",
     "журнал [N]                       — последние N событий",
+    "проверка [--живой]               — всё ли готово к партии",
     "помощь                           — эта справка",
     "выход                            — закрыть пульт",
 ]
@@ -211,6 +212,12 @@ class MasterConsole:
                 print(f"  ● {room}: {action}")
         return 0
 
+    def cmd_doctor(self, живой: bool = False) -> int:
+        """Проверка готовности к партии (модуль entropy/doctor.py)."""
+        отчёт = doctor.проверить(self.cfg, живой=живой)
+        doctor.напечатать(отчёт)
+        return 0 if отчёт.готово else 1
+
     def cmd_log(self, count: str = "15") -> int:
         try:
             limit = int(count)
@@ -258,6 +265,9 @@ class MasterConsole:
             return self.cmd_status()
         if head == "журнал":
             return self.cmd_log(rest[0] if rest else "15")
+        if head in ("проверка", "готовность"):
+            живой = any(a in ("--живой", "--live") for a in rest)
+            return self.cmd_doctor(живой)
         ui.error(f"неизвестная команда: {head} (см. «помощь»)")
         return 1
 
@@ -302,6 +312,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="путь к файлу конфигурации")
     parser.add_argument("--да", "--yes", dest="yes", action="store_true",
                         help="подтвердить событие без вопроса (для разового запуска)")
+    parser.add_argument("--живой", "--live", dest="live", action="store_true",
+                        help="в команде «проверка» — сделать пробный запрос к модели")
     parser.add_argument("--пометка", "--note", dest="note", default="",
                         help="пометка к событию для журнала")
     return parser
@@ -316,7 +328,10 @@ def main(argv: list[str] | None = None) -> int:
         ui.error(str(exc))
         return 2
     if args.слова:
-        return console.dispatch(args.слова, auto_yes=args.yes, note=args.note)
+        слова = list(args.слова)
+        if args.live and слова[0] in ("проверка", "готовность"):
+            слова.append("--живой")
+        return console.dispatch(слова, auto_yes=args.yes, note=args.note)
     return console.run_interactive()
 
 
