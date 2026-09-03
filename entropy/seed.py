@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from . import config, paths, ui
+from . import config, paths, quest as quest_mod, ui
 from .pngtext import write_png
 
 #: Файл-маркер в корне раскладки: без него «очистить» ничего не удаляет.
@@ -138,11 +138,14 @@ WRITERS = {
 class Seeder:
     """Раскладка файлов-головоломок по сценарию."""
 
-    def __init__(self, scenario_path: str | os.PathLike, root: str | os.PathLike | None = None):
+    def __init__(self, scenario_path: str | os.PathLike, root: str | os.PathLike | None = None,
+                 constants: "quest_mod.Constants | None" = None):
         self.path = paths.resolve(scenario_path)
         if not self.path.exists():
             raise FileNotFoundError(f"файл сценария не найден: {self.path}")
-        self.scenario: dict[str, Any] = json.loads(self.path.read_text(encoding="utf-8"))
+        self.constants = constants if constants is not None else quest_mod.default()
+        сырое = json.loads(self.path.read_text(encoding="utf-8"))
+        self.scenario: dict[str, Any] = self.constants.render(сырое)
         self.root = paths.expand(root or self.scenario.get("корень", "~/комплекс"))
         self.marker = self.scenario.get("маркер", MARKER)
 
@@ -285,6 +288,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="куда раскладывать (перебивает «корень» из сценария)")
     parser.add_argument("--перезаписать", "--overwrite", dest="overwrite", action="store_true",
                         help="удалить прежнюю раскладку и собрать заново")
+    parser.add_argument("--случайный-код", "--random-code", dest="random_code",
+                        action="store_true",
+                        help="выдать новый случайный код двери на эту партию")
     parser.add_argument("--да", "--yes", dest="yes", action="store_true",
                         help="подтвердить удаление раскладки")
     parser.add_argument("--в-файл", "--out", dest="out", default=None,
@@ -297,8 +303,12 @@ def main(argv: list[str] | None = None) -> int:
     cfg = config.load(args.config)
     ui.init(cfg)
     scenario = args.scenario or cfg["files"]["scenario"]
+    константы = quest_mod.Constants(config.data_file(cfg, "quest"))
+    if args.random_code and args.команда == "разложить":
+        новый = константы.randomize_door_code()
+        print(ui.c(f"код двери на эту партию: {новый}", "жёлтый", "жирный"))
     try:
-        seeder = Seeder(scenario, args.root)
+        seeder = Seeder(scenario, args.root, константы)
     except (FileNotFoundError, json.JSONDecodeError) as exc:
         ui.error(str(exc))
         return 2

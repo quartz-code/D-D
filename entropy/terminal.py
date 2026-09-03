@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import config, paths, session as session_mod, ui
+from . import config, paths, quest as quest_mod, session as session_mod, ui
 from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
 
@@ -63,8 +63,9 @@ class TerminalApp:
         ui.init(self.cfg)
 
         self.session, self.events = session_mod.open_session(self.cfg)
-        self.stages = Stages(config.data_file(self.cfg, "stages"))
-        self.complex = ComplexMap(config.data_file(self.cfg, "complex"))
+        self.constants = quest_mod.Constants(config.data_file(self.cfg, "quest"))
+        self.stages = Stages(config.data_file(self.cfg, "stages"), self.constants)
+        self.complex = ComplexMap(config.data_file(self.cfg, "complex"), self.constants)
         self.canned_dir = config.data_file(self.cfg, "canned_dir")
         self.cursor = self.events.size()
 
@@ -106,7 +107,8 @@ class TerminalApp:
             location = "~" if str(where) == "." else f"~/{where}"
         except ValueError:
             location = str(self.cwd)
-        return ui.c(f"12-К:{location}$ ", "зелёный", "жирный")
+        объект = self.constants.get("объект", "12-К")
+        return ui.c(f"{объект}:{location}$ ", "зелёный", "жирный")
 
     def drain_events(self) -> None:
         events, self.cursor = self.events.tail(self.cursor)
@@ -344,7 +346,7 @@ class TerminalApp:
         if delay:
             print(ui.c("обработка запроса…", "тусклый"))
             time.sleep(delay)
-        text = Stages.canned_text(entry, self.canned_dir)
+        text = self.stages.canned_text(entry, self.canned_dir)
         self.out(text)
         self.note(f"вывод подставлен из заготовки: {entry.get('файл', 'текст в stages.json')}")
         if entry.get("этап_после"):
@@ -392,7 +394,7 @@ class TerminalApp:
     def greet(self) -> None:
         info = self.stages.info(self.stage)
         lines = [
-            "Терминал служебного доступа. Объект 12-К.",
+            f"Терминал служебного доступа. Объект {self.constants.get('объект', '12-К')}.",
             "",
             f"этап:     {self.stage} — {info.get('название', '')}",
             f"каталог:  {self.cwd}",
@@ -401,7 +403,7 @@ class TerminalApp:
             "«связь»  — выход на голосовой канал распорядителя.",
             "«выход»  — отключиться.",
         ]
-        print(ui.box("КОМПЛЕКС 12-К · КОНСОЛЬ", lines, "зелёный"))
+        print(ui.box(f"КОМПЛЕКС {self.constants.get('объект', '12-К')} · КОНСОЛЬ", lines, "зелёный"))
         if not self.root.is_dir():
             self.note(f"каталог квеста не найден: {self.root} — разложите файлы: "
                       f"python3 run_seed.py разложить")

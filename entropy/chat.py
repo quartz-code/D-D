@@ -19,7 +19,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import config, deepseek, guard, persona as persona_mod, session as session_mod, ui
+from . import (config, deepseek, guard, persona as persona_mod,
+               quest as quest_mod, session as session_mod, ui)
 from .complexctl import ComplexMap
 from .stages import Stages
 
@@ -58,9 +59,10 @@ class ChatApp:
         ui.init(self.cfg)
 
         self.session, self.events = session_mod.open_session(self.cfg)
-        self.stages = Stages(config.data_file(self.cfg, "stages"))
-        self.persona = persona_mod.Persona(config.data_file(self.cfg, "persona"))
-        self.complex = ComplexMap(config.data_file(self.cfg, "complex"))
+        self.constants = quest_mod.Constants(config.data_file(self.cfg, "quest"))
+        self.stages = Stages(config.data_file(self.cfg, "stages"), self.constants)
+        self.persona = persona_mod.Persona(config.data_file(self.cfg, "persona"), self.constants)
+        self.complex = ComplexMap(config.data_file(self.cfg, "complex"), self.constants)
         self.history_path: Path = config.state_file(self.cfg, "history_file")
         self.history: list[dict[str, str]] = []
         self.cursor = self.events.size()

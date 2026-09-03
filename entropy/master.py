@@ -19,7 +19,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import config, guard, persona as persona_mod, session as session_mod, ui
+from . import (config, guard, persona as persona_mod, quest as quest_mod,
+               session as session_mod, ui)
 from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
 
@@ -50,9 +51,10 @@ class MasterConsole:
         self.cfg = cfg
         ui.init(cfg)
         self.session, self.events = session_mod.open_session(cfg)
-        self.complex = ComplexMap(config.data_file(cfg, "complex"))
-        self.stages = Stages(config.data_file(cfg, "stages"))
-        self.persona = persona_mod.Persona(config.data_file(cfg, "persona"))
+        self.constants = quest_mod.Constants(config.data_file(cfg, "quest"))
+        self.complex = ComplexMap(config.data_file(cfg, "complex"), self.constants)
+        self.stages = Stages(config.data_file(cfg, "stages"), self.constants)
+        self.persona = persona_mod.Persona(config.data_file(cfg, "persona"), self.constants)
         if not self.session.get("этап"):
             self.session.set("этап", self.stages.first())
 

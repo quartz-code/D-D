@@ -37,12 +37,12 @@ class TestStages(QuestTestCase):
     def test_сценарная_команда_находится_по_шаблону(self):
         entry = self.stages.scripted("коридор_3", "вентиляция --статус")
         self.assertIsNotNone(entry)
-        text = Stages.canned_text(entry, config.data_file(self.load_config(), "canned_dir"))
+        text = self.stages.canned_text(entry, config.data_file(self.load_config(), "canned_dir"))
         self.assertIn("ВЕНТИЛЯЦИОННЫЙ УЗЕЛ", text)
         self.assertIsNone(self.stages.scripted("шлюз", "вентиляция --статус"))
 
     def test_отсутствующая_заготовка_не_роняет_приложение(self):
-        text = Stages.canned_text({"файл": "нет-такого.txt"}, self.tmp)
+        text = self.stages.canned_text({"файл": "нет-такого.txt"}, self.tmp)
         self.assertIn("нет файла заготовки", text)
 
     def test_переход_по_чтению_нужного_файла(self):

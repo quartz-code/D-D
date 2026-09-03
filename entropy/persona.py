@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from . import paths
+from . import paths, quest as quest_mod
 
 DEFAULT_ATTITUDE = "настороженное"
 
@@ -21,15 +21,18 @@ DEFAULT_ATTITUDE = "настороженное"
 class Persona:
     """Характер разума из ``data/persona.json``."""
 
-    def __init__(self, path: str | os.PathLike):
+    def __init__(self, path: str | os.PathLike,
+                 constants: "quest_mod.Constants | None" = None):
         self.path: Path = paths.resolve(path)
+        self.constants = constants if constants is not None else quest_mod.default()
         self.data: dict[str, Any] = {}
         self.load()
 
     def load(self) -> dict[str, Any]:
         if not self.path.exists():
             raise FileNotFoundError(f"файл характера не найден: {self.path}")
-        self.data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        self.data = self.constants.render(data) if self.constants else data
         return self.data
 
     @property

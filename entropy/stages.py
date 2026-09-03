@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import paths, ui
+from . import paths, quest as quest_mod, ui
 
 #: Команды, чтение файла которыми считается «нашёл и прочитал».
 READ_COMMANDS = (
@@ -28,15 +28,19 @@ _READ_RE = re.compile(r"\b(" + "|".join(READ_COMMANDS) + r")\b")
 class Stages:
     """Карта этапов из ``data/stages.json``."""
 
-    def __init__(self, path: str | os.PathLike):
+    def __init__(self, path: str | os.PathLike,
+                 constants: "quest_mod.Constants | None" = None):
         self.path: Path = paths.resolve(path)
+        self.constants = constants if constants is not None else quest_mod.default()
         self.data: dict[str, Any] = {}
         self.load()
 
     def load(self) -> dict[str, Any]:
         if not self.path.exists():
             raise FileNotFoundError(f"карта этапов не найдена: {self.path}")
-        self.data = json.loads(self.path.read_text(encoding="utf-8"))
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        # Константы квеста подставляются при чтении: на диске остаются шаблоны.
+        self.data = self.constants.render(data) if self.constants else data
         return self.data
 
     # -------------------------------------------------------------- справочная
@@ -117,18 +121,20 @@ class Stages:
                 return entry
         return None
 
-    @staticmethod
-    def canned_text(entry: dict[str, Any], canned_dir: str | os.PathLike) -> str:
+    def canned_text(self, entry: dict[str, Any], canned_dir: str | os.PathLike) -> str:
         """Читает заготовленный вывод. ``текст`` в JSON важнее, чем ``файл``."""
         if entry.get("текст"):
-            return str(entry["текст"])
+            return self._подставить(str(entry["текст"]))
         name = entry.get("файл")
         if not name:
             return ""
         path = paths.resolve(canned_dir) / name
         if not path.exists():
             return f"[нет файла заготовки: {path}]"
-        return path.read_text(encoding="utf-8").rstrip("\n")
+        return self._подставить(path.read_text(encoding="utf-8").rstrip("\n"))
+
+    def _подставить(self, text: str) -> str:
+        return self.constants.substitute(text) if self.constants else text
 
     # ------------------------------------------------------------- автопереход
     def check_transition(

@@ -92,6 +92,7 @@ DEFAULTS: dict[str, Any] = {
         "history_file": "state/chat_history.json",
     },
     "files": {
+        "quest": "data/quest.json",
         "complex": "data/complex.json",
         "stages": "data/stages.json",
         "persona": "data/persona.json",

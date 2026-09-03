@@ -37,7 +37,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import paths
+from . import paths, quest as quest_mod
 
 #: Слово, которое ведущий обязан ввести, чтобы событие применилось.
 CONFIRM_WORD = "ДА"
@@ -65,8 +65,13 @@ def _now() -> str:
 class ComplexMap:
     """Файл возможностей комплекса + операции над ним."""
 
-    def __init__(self, path: str | os.PathLike):
+    def __init__(self, path: str | os.PathLike,
+                 constants: "quest_mod.Constants | None" = None):
         self.path: Path = paths.resolve(path)
+        # Этот файл приложение перезаписывает (в нём живёт состояние комнат),
+        # поэтому константы подставляются не при загрузке, а при чтении
+        # описаний — иначе шаблоны затёрлись бы готовыми значениями.
+        self.constants = constants if constants is not None else quest_mod.default()
         self.raw: dict[str, Any] = {}
         self.load()
 
@@ -115,7 +120,8 @@ class ComplexMap:
 
     def describe_action(self, action: str) -> dict[str, Any]:
         meta = self.action_meta.get(action)
-        return dict(meta) if isinstance(meta, dict) else {}
+        meta = dict(meta) if isinstance(meta, dict) else {}
+        return self.constants.render(meta) if self.constants else meta
 
     def is_combat(self, action: str) -> bool:
         """Ведёт ли действие к боевой сцене (раздел 8 ТЗ)."""
@@ -127,10 +133,11 @@ class ComplexMap:
         Возвращается глубокая копия: даже если код чата что-то в ней изменит,
         файл возможностей это не затронет.
         """
-        return {
+        снимок = {
             "комнаты": copy.deepcopy(self.rooms),
             "описания_действий": copy.deepcopy(self.action_meta),
         }
+        return self.constants.render(снимок) if self.constants else снимок
 
     def all_active(self) -> list[tuple[str, str]]:
         """Список пар (комната, действие) по всем подтверждённым действиям."""

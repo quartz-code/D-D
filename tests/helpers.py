@@ -22,7 +22,7 @@ class QuestTestCase(unittest.TestCase):
 
         self.data = self.tmp / "data"
         self.data.mkdir()
-        for name in ("complex.json", "stages.json", "persona.json"):
+        for name in ("complex.json", "stages.json", "persona.json", "quest.json"):
             shutil.copy(DATA / name, self.data / name)
         shutil.copytree(DATA / "canned", self.data / "canned")
         (self.data / "scenario").mkdir()
@@ -32,6 +32,7 @@ class QuestTestCase(unittest.TestCase):
         self.config_path = self.tmp / "config.json"
         self.config_path.write_text(json.dumps({
             "files": {
+                "quest": str(self.data / "quest.json"),
                 "complex": str(self.data / "complex.json"),
                 "stages": str(self.data / "stages.json"),
                 "persona": str(self.data / "persona.json"),
@@ -57,3 +58,8 @@ class QuestTestCase(unittest.TestCase):
     def load_config(self) -> dict:
         from entropy import config
         return config.load(self.config_path)
+
+    def constants(self):
+        """Константы квеста из временной копии данных."""
+        from entropy.quest import Constants
+        return Constants(self.data / "quest.json")
