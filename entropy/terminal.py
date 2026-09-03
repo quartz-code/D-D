@@ -26,6 +26,7 @@ from . import (config, features, journal as journal_mod, paths,
                quest as quest_mod, session as session_mod, ui)
 from .complexctl import ComplexMap, ConfirmationRequired, CONFIRM_WORD, summary
 from .stages import Stages
+from .watcher import Наблюдатель, печать_поверх_ввода
 
 try:
     import readline  # noqa: F401
@@ -69,6 +70,11 @@ class TerminalApp:
         self.complex = ComplexMap(config.data_file(self.cfg, "complex"), self.constants)
         self.canned_dir = config.data_file(self.cfg, "canned_dir")
         self.journal = journal_mod.открыть(self.cfg)
+        # Живое оповещение: фоновый поток печатает сигнал сразу, не дожидаясь
+        # следующего Enter. Выключается в пусковом окне.
+        self.watcher: Наблюдатель | None = None
+        if features.включена(self.cfg, "живое_оповещение"):
+            self.watcher = Наблюдатель(self.events, self._живое_событие)
         self.cursor = self.events.size()
 
         root = args.root or self.cfg["terminal"]["sandbox_root"]
@@ -112,7 +118,26 @@ class TerminalApp:
         объект = self.constants.get("объект", "12-К")
         return ui.c(f"{объект}:{location}$ ", "зелёный", "жирный")
 
+    def _живое_событие(self, event: dict[str, Any]) -> None:
+        """Обработчик фонового потока: печатает поверх набираемой строки."""
+        печать_поверх_ввода(lambda: self.show_event(event))
+
+    def show_event(self, event: dict[str, Any]) -> None:
+        """Показывает одно событие из журнала."""
+        if event.get("тип") == "действие_подтверждено" and event.get("боевое"):
+            ui.combat_alert(self.cfg, event.get("комната", "?"), event.get("действие", "?"),
+                            event.get("описание", ""), event.get("пометка", ""))
+        elif event.get("тип") in ("этап", "отношение"):
+            self.note(ui.event_line(event))
+            if event.get("тип") == "этап":
+                self.session.load()
+
     def drain_events(self) -> None:
+        if self.watcher is not None:
+            # События разбирает фоновый поток; здесь — тот же разбор по
+            # требованию. Курсор общий, поэтому дважды показано не будет.
+            self.watcher.проверить()
+            return
         events, self.cursor = self.events.tail(self.cursor)
         for event in events:
             if event.get("тип") == "действие_подтверждено" and event.get("боевое"):
@@ -412,6 +437,9 @@ class TerminalApp:
 
     def run(self) -> int:
         self.greet()
+        if self.watcher is not None:
+            self.watcher.запустить()
+            self.note("живое оповещение включено")
         while True:
             self.drain_events()
             try:
@@ -452,6 +480,8 @@ class TerminalApp:
             success = self.run_real(command)
             self.journal.команда(command, "настоящая", success, self.stage)
             self.maybe_advance(command, success)
+        if self.watcher is not None:
+            self.watcher.остановить()
         self.note("терминал закрыт")
         return 0
 

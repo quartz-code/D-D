@@ -19,10 +19,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import (config, deepseek, guard, persona as persona_mod,
+from . import (config, deepseek, features, guard, persona as persona_mod,
                quest as quest_mod, session as session_mod, ui)
 from .complexctl import ComplexMap
 from .stages import Stages
+from .watcher import Наблюдатель, печать_поверх_ввода
 
 try:  # редактирование строки и история ввода, если доступны
     import readline  # noqa: F401
@@ -66,6 +67,9 @@ class ChatApp:
         self.history_path: Path = config.state_file(self.cfg, "history_file")
         self.history: list[dict[str, str]] = []
         self.cursor = self.events.size()
+        self.watcher: Наблюдатель | None = None
+        if features.включена(self.cfg, "живое_оповещение"):
+            self.watcher = Наблюдатель(self.events, self._живое_событие)
         self.offline = bool(args.offline)
         self.deprived = False   # лимит исчерпан, работаем на заготовках
         self.client: Any = None
@@ -167,8 +171,21 @@ class ChatApp:
         ui.typewriter(text, float(self.cfg["chat"].get("typewriter_cps", 0) or 0), "зелёный")
         print()
 
+    def _живое_событие(self, event: dict[str, Any]) -> None:
+        печать_поверх_ввода(lambda: self.show_event(event))
+
+    def show_event(self, event: dict[str, Any]) -> None:
+        if event.get("тип") == "действие_подтверждено" and event.get("боевое"):
+            ui.combat_alert(self.cfg, event.get("комната", "?"), event.get("действие", "?"),
+                            event.get("описание", ""), event.get("пометка", ""))
+        else:
+            self.note(ui.event_line(event))
+
     def drain_events(self) -> None:
         """Показывает, что произошло в других окнах (пульт, терминал)."""
+        if self.watcher is not None:
+            self.watcher.проверить()
+            return
         events, self.cursor = self.events.tail(self.cursor)
         for event in events:
             if event.get("тип") == "действие_подтверждено" and event.get("боевое"):
@@ -452,6 +469,8 @@ class ChatApp:
 
     def run(self) -> int:
         self.greet()
+        if self.watcher is not None:
+            self.watcher.запустить()
         while True:
             self.drain_events()
             try:
@@ -469,6 +488,8 @@ class ChatApp:
                     break
                 continue
             self.send(line)
+        if self.watcher is not None:
+            self.watcher.остановить()
         self.note("канал закрыт")
         return 0
 
