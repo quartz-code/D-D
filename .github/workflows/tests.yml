@@ -1,0 +1,60 @@
+# Прогон тестов квеста при каждом изменении.
+name: Тесты
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  тесты:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Нижняя граница поддержки и текущая версия.
+        python: ["3.9", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Поставить Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Проверить, что утилиты для головоломок на месте
+        run: |
+          # Имена переменных оболочки — только латиницей: bash кириллицу
+          # в идентификаторах не принимает.
+          for tool in file gzip unzip tar base64 rev tac; do
+            command -v "$tool" >/dev/null || { echo "нет утилиты $tool"; exit 1; }
+          done
+
+      - name: Тесты
+        env:
+          # Квест целиком на русском: без UTF-8 часть утилит ведёт себя странно.
+          LC_ALL: C.UTF-8
+          LANG: C.UTF-8
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Сквозная проверка раскладок
+        env:
+          LC_ALL: C.UTF-8
+          LANG: C.UTF-8
+        run: |
+          for scenario in data/scenario/*.json; do
+            echo "--- $scenario ---"
+            python run_seed.py разложить --сценарий "$scenario" --корень /tmp/quest
+            python run_seed.py проверить --сценарий "$scenario" --корень /tmp/quest
+            python run_seed.py очистить  --сценарий "$scenario" --корень /tmp/quest --да
+          done
+
+      - name: Проверка готовности (без сети)
+        env:
+          LC_ALL: C.UTF-8
+          LANG: C.UTF-8
+        run: |
+          python run_seed.py разложить
+          python run_master.py проверка

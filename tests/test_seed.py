@@ -160,3 +160,56 @@ class TestSeedCli(QuestTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestКороткаяРаскладка(QuestTestCase):
+    """Второй сценарий: генератор должен быть пригоден не только для одного."""
+
+    def сеятель(self):
+        сценарий = self.data / "scenario" / "short.json"
+        if not сценарий.exists():
+            import shutil as sh
+            sh.copy(Path(__file__).resolve().parent.parent / "data" / "scenario" / "short.json",
+                    сценарий)
+        return Seeder(сценарий, self.root, self.constants())
+
+    def test_раскладывается_и_проверяется(self):
+        seeder = self.сеятель()
+        созданные = seeder.seed()
+        self.assertEqual(len(созданные), 9)
+        ok, bad = seeder.verify()
+        self.assertEqual(bad, [])
+
+    def test_ключевые_файлы_этапов_на_месте(self):
+        """Иначе пришлось бы править ещё и карту этапов."""
+        self.сеятель().seed()
+        for путь in ("шлюз/журнал_шлюза.log", "архив/схема_секции.dat"):
+            self.assertTrue((self.root / путь).exists(), путь)
+
+    def test_головоломки_решаются(self):
+        import base64 as b64
+        import gzip as gz
+        seeder = self.сеятель()
+        seeder.seed()
+        with gz.open(self.root / "архив" / "опись.txt", "rt", encoding="utf-8") as fh:
+            self.assertIn("ОПИСЬ НОСИТЕЛЕЙ", fh.read())
+        текст = b64.b64decode((self.root / "архив" / "протокол_5.b64").read_text()).decode()
+        self.assertIn("Энтропия", текст)
+        строки = (self.root / "серверная" / "код_внешней_двери.txt").read_text(
+            encoding="utf-8").splitlines()
+        код = self.constants()["код_двери"]
+        self.assertTrue(any(код in с[::-1] for с in строки))
+
+    def test_константы_подставлены(self):
+        """В файлах игроков не должно остаться «{{код_двери}}»."""
+        seeder = self.сеятель()
+        seeder.seed()
+        текстовые = {"текст", "записка", "журнал", "реверс", "перестановка_строк"}
+        проверено = 0
+        for запись in seeder.files:
+            if запись.get("тип", "текст") not in текстовые:
+                continue     # gzip, zip, tar и png читать как текст бессмысленно
+            файл = self.root / запись["путь"]
+            self.assertNotIn("{{", файл.read_text(encoding="utf-8"), запись["путь"])
+            проверено += 1
+        self.assertGreater(проверено, 0)
