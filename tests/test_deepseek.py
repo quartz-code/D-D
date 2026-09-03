@@ -123,3 +123,58 @@ class TestOfflineClient(QuestTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestПовторы(QuestTestCase):
+    """Одна помеха в сети не должна стоить игрокам реплики."""
+
+    def клиент(self, **правки):
+        cfg = self.load_config()
+        cfg["deepseek"].update({"api_key": "ключ", "retries": 2, "retry_pause_sec": 0}, **правки)
+        return deepseek.DeepSeekClient(cfg)
+
+    def test_перегрузка_сервиса_повторяется(self):
+        client = self.клиент()
+        перегрузка = urllib.error.HTTPError("url", 429, "too many", {}, io.BytesIO(b"{}"))
+        ответы = [перегрузка, перегрузка, ответ_апи("наконец-то")]
+        with mock.patch("urllib.request.urlopen", side_effect=ответы) as вызов:
+            with mock.patch("time.sleep"):
+                текст, _ = client.chat([{"role": "user", "content": "?"}])
+        self.assertEqual(текст, "наконец-то")
+        self.assertEqual(вызов.call_count, 3)
+
+    def test_обрыв_связи_повторяется(self):
+        client = self.клиент()
+        обрыв = urllib.error.URLError("сеть недоступна")
+        with mock.patch("urllib.request.urlopen", side_effect=[обрыв, ответ_апи()]) as вызов:
+            with mock.patch("time.sleep"):
+                client.chat([{"role": "user", "content": "?"}])
+        self.assertEqual(вызов.call_count, 2)
+
+    def test_неверный_ключ_не_повторяется(self):
+        """Повтор этого не исправит — только потратит время партии."""
+        client = self.клиент()
+        отказ = urllib.error.HTTPError("url", 401, "unauthorized", {}, io.BytesIO(b"{}"))
+        with mock.patch("urllib.request.urlopen", side_effect=отказ) as вызов:
+            with mock.patch("time.sleep"):
+                with self.assertRaises(deepseek.DeepSeekError):
+                    client.chat([{"role": "user", "content": "?"}])
+        self.assertEqual(вызов.call_count, 1)
+
+    def test_повторы_не_бесконечны(self):
+        client = self.клиент(retries=2)
+        перегрузка = urllib.error.HTTPError("url", 503, "unavailable", {}, io.BytesIO(b"{}"))
+        with mock.patch("urllib.request.urlopen", side_effect=перегрузка) as вызов:
+            with mock.patch("time.sleep"):
+                with self.assertRaises(deepseek.DeepSeekError):
+                    client.chat([{"role": "user", "content": "?"}])
+        self.assertEqual(вызов.call_count, 3, "первая попытка плюс два повтора")
+
+    def test_пауза_между_попытками_растёт(self):
+        client = self.клиент(retry_pause_sec=1.0)
+        перегрузка = urllib.error.HTTPError("url", 500, "boom", {}, io.BytesIO(b"{}"))
+        with mock.patch("urllib.request.urlopen", side_effect=перегрузка):
+            with mock.patch("time.sleep") as пауза:
+                with self.assertRaises(deepseek.DeepSeekError):
+                    client.chat([{"role": "user", "content": "?"}])
+        self.assertEqual([c.args[0] for c in пауза.call_args_list], [1.0, 2.0])

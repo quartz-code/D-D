@@ -47,6 +47,7 @@ class QuestTestCase(unittest.TestCase):
             },
             "terminal": {"sandbox_root": str(self.root)},
             "chat": {"delay_min_sec": 0, "delay_max_sec": 0, "typewriter_cps": 0},
+            "deepseek": {"retries": 0, "retry_pause_sec": 0},
             "ui": {"color": False, "bell": False, "flash_frames": 0},
         }, ensure_ascii=False), encoding="utf-8")
 

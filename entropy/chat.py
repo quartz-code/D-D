@@ -67,6 +67,7 @@ class ChatApp:
         self.history: list[dict[str, str]] = []
         self.cursor = self.events.size()
         self.offline = bool(args.offline)
+        self.deprived = False   # лимит исчерпан, работаем на заготовках
         self.client: Any = None
 
         if args.fresh:
@@ -118,6 +119,32 @@ class ChatApp:
         if self.chars_left() <= 0:
             return "исчерпан лимит объёма переписки за сессию"
         return None
+
+    # ------------------------------------------------------------------ расход
+    def стоимость(self) -> float | None:
+        """Прикидка расхода в деньгах по ценам из конфигурации.
+
+        Приложение никуда за ценами не ходит: их вписывает ведущий. Ноль
+        означает «не считать».
+        """
+        секция = self.cfg.get("deepseek", {})
+        цена_запрос = float(секция.get("цена_за_1м_запрос", 0) or 0)
+        цена_ответ = float(секция.get("цена_за_1м_ответ", 0) or 0)
+        if not цена_запрос and not цена_ответ:
+            return None
+        данные = self.session.load()
+        return (int(данные.get("токенов_запрос", 0) or 0) / 1_000_000 * цена_запрос
+                + int(данные.get("токенов_ответ", 0) or 0) / 1_000_000 * цена_ответ)
+
+    def расход_строкой(self) -> str:
+        данные = self.session.load()
+        всего = int(данные.get("токенов_запрос", 0) or 0) + int(данные.get("токенов_ответ", 0) or 0)
+        строка = f"{всего} токенов"
+        деньги = self.стоимость()
+        if деньги is not None:
+            валюта = self.cfg.get("deepseek", {}).get("валюта", "$")
+            строка += f" ≈ {деньги:.4f} {валюта}"
+        return строка
 
     # ------------------------------------------------------------------ клиент
     def ensure_client(self) -> Any:
@@ -171,10 +198,19 @@ class ChatApp:
 
     def send(self, user_text: str) -> None:
         reason = self.limit_reached()
-        if reason:
-            self.note(f"{reason}. Добавьте обращения командой «/лимит +5» или закройте канал.")
-            self.voice("Канал перегружен. Обмен на сегодня закрыт. Обмен на сегодня закрыт.")
-            return
+        if reason and not self.deprived:
+            # Лимит исчерпан. По умолчанию сцена не встаёт: разум переходит на
+            # заготовленные ответы, обращений к API больше нет — и денег тоже.
+            if str(self.cfg["chat"].get("при_исчерпании_лимита", "заглушка")) == "заглушка":
+                self.deprived = True
+                self.client = deepseek.OfflineClient(self.cfg)
+                self.note(f"{reason}: разум переведён на заготовленные ответы, "
+                          "обращений к API больше не будет. Вернуть: /лимит +5")
+            else:
+                self.note(f"{reason}. Добавьте обращения командой «/лимит +5».")
+                self.voice("Канал перегружен. Обмен на сегодня закрыт. "
+                           "Обмен на сегодня закрыт.")
+                return
 
         # Обезвреживаем реплику: убираем поддельные служебные заголовки
         # («system:», <|...|>) и обрезаем слишком длинные вставки.
@@ -245,11 +281,13 @@ class ChatApp:
         self.session.bump("сообщений_израсходовано")
         self.session.bump("символов_израсходовано", len(user_text) + len(reply))
         if usage and not usage.get("офлайн"):
-            self.note(
-                f"токены: запрос {usage.get('prompt_tokens', '?')}, "
-                f"ответ {usage.get('completion_tokens', '?')}; "
-                f"осталось обращений: {self.limit_left()}"
-            )
+            запрос = int(usage.get("prompt_tokens", 0) or 0)
+            ответ = int(usage.get("completion_tokens", 0) or 0)
+            self.session.bump("токенов_запрос", запрос)
+            self.session.bump("токенов_ответ", ответ)
+            self.note(f"токены: запрос {запрос}, ответ {ответ}; "
+                      f"за партию {self.расход_строкой()}; "
+                      f"осталось обращений: {self.limit_left()}")
         elif self.limit_left() <= 5:
             self.note(f"осталось обращений: {self.limit_left()}")
 
@@ -302,6 +340,7 @@ class ChatApp:
                 f"осталось обращений:{self.limit_left():>4} из {self.limit_total()}",
                 f"осталось символов: {self.chars_left()}",
                 f"реплик в истории:  {len(self.history)}",
+                f"расход за партию:  {self.расход_строкой()}",
             ]
             print(ui.box("СОСТОЯНИЕ СЕССИИ", session_mod.describe(self.session, extra).splitlines(),
                          "голубой"))
@@ -362,6 +401,10 @@ class ChatApp:
             ui.error("укажите число, например: /лимит +5")
             return
         total = self.session.bump("прибавка_к_лимиту", delta)
+        if self.deprived and self.limit_left() > 0 and not self.offline:
+            self.deprived = False
+            self.client = None      # следующий запрос снова пойдёт в модель
+            self.note("лимит пополнен: разум возвращается к модели")
         self.note(f"лимит изменён на {delta:+d} (прибавка всего: {total}); "
                   f"осталось {self.limit_left()}")
 

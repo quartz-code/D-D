@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import random
 import ssl
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -21,7 +22,12 @@ from . import config
 
 
 class DeepSeekError(Exception):
-    """Ошибка обращения к API."""
+    """Ошибка обращения к API.
+
+    Атрибут ``временная`` говорит, имеет ли смысл повторить запрос.
+    """
+
+    временная = False
 
 
 class DeepSeekClient:
@@ -34,6 +40,8 @@ class DeepSeekClient:
         self.temperature = float(section.get("temperature", 1.0))
         self.max_tokens = int(section.get("max_tokens", 700))
         self.timeout = float(section.get("timeout_sec", 60))
+        self.retries = max(0, int(section.get("retries", 2)))
+        self.retry_pause = float(section.get("retry_pause_sec", 2.0))
         self.key = config.api_key(cfg)
         if not self.key:
             raise DeepSeekError(
@@ -46,8 +54,30 @@ class DeepSeekClient:
     def name(self) -> str:
         return f"DeepSeek/{self.model}"
 
+    #: Коды, при которых повтор осмыслен: перегрузка и сбои на стороне сервиса.
+    ПОВТОРЯЕМЫЕ_КОДЫ = (429, 500, 502, 503, 504)
+
     def chat(self, messages: list[dict[str, str]]) -> tuple[str, dict[str, Any]]:
-        """Отправляет переписку в модель и возвращает (ответ, статистика)."""
+        """Отправляет переписку в модель, повторяя при временных сбоях.
+
+        Одна помеха в сети не должна стоить игрокам реплики: запрос
+        повторяется ``retries`` раз с нарастающей паузой. Ошибки, которые
+        повтор не исправит (неверный ключ, кончившийся баланс), возвращаются
+        сразу.
+        """
+        последняя: DeepSeekError | None = None
+        for попытка in range(self.retries + 1):
+            try:
+                return self._chat_once(messages)
+            except DeepSeekError as ошибка:
+                последняя = ошибка
+                if not getattr(ошибка, "временная", False) or попытка >= self.retries:
+                    raise
+                time.sleep(self.retry_pause * (2 ** попытка))
+        raise последняя  # pragma: no cover — цикл всегда возвращает или бросает
+
+    def _chat_once(self, messages: list[dict[str, str]]) -> tuple[str, dict[str, Any]]:
+        """Одно обращение к API без повторов."""
         payload = {
             "model": self.model,
             "messages": messages,
@@ -78,11 +108,17 @@ class DeepSeekClient:
                 hint = " — исчерпан баланс аккаунта DeepSeek"
             elif exc.code == 429:
                 hint = " — слишком часто, подождите несколько секунд"
-            raise DeepSeekError(f"HTTP {exc.code}{hint}: {detail}") from exc
+            ошибка = DeepSeekError(f"HTTP {exc.code}{hint}: {detail}")
+            ошибка.временная = exc.code in self.ПОВТОРЯЕМЫЕ_КОДЫ
+            raise ошибка from exc
         except urllib.error.URLError as exc:
-            raise DeepSeekError(f"нет связи с {self.base_url}: {exc.reason}") from exc
+            ошибка = DeepSeekError(f"нет связи с {self.base_url}: {exc.reason}")
+            ошибка.временная = True
+            raise ошибка from exc
         except TimeoutError as exc:
-            raise DeepSeekError(f"превышено время ожидания ({self.timeout} с)") from exc
+            ошибка = DeepSeekError(f"превышено время ожидания ({self.timeout} с)")
+            ошибка.временная = True
+            raise ошибка from exc
         except json.JSONDecodeError as exc:
             raise DeepSeekError(f"некорректный ответ API: {exc}") from exc
 

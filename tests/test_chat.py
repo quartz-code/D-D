@@ -113,26 +113,79 @@ class TestChat(ChatTestCase):
         self.assertNotEqual(app.session.get("отношение"), было)
 
     # ------------------------------------------------------------------ лимиты
-    def test_лимит_сообщений_останавливает_переписку(self):
+    def test_лимит_сообщений_прекращает_обращения_к_модели(self):
         """Раздел 6.3 ТЗ: третий уровень ограничения."""
         app = self.make_app()
+        платный = app.client
         app.cfg["chat"]["limit_messages"] = 2
         for _ in range(2):
             app.send("Вопрос.")
         self.assertEqual(app.limit_left(), 0)
-        вызовов = len(app.client.calls)
+        вызовов = len(платный.calls)
+        self.capture(app.send, "Ещё вопрос.")
+        self.assertEqual(len(платный.calls), вызовов, "запрос ушёл сверх лимита")
+
+    def test_по_умолчанию_сцена_не_встаёт_а_переходит_на_заготовки(self):
+        app = self.make_app()
+        платный = app.client
+        app.cfg["chat"]["limit_messages"] = 1
+        app.send("Вопрос.")
         вывод = self.capture(app.send, "Ещё вопрос.")
-        self.assertEqual(len(app.client.calls), вызовов, "запрос ушёл сверх лимита")
+        self.assertTrue(app.deprived)
+        self.assertIn("заготовленные ответы", вывод)
+        self.assertIn("распорядитель>", вывод, "разум обязан что-то ответить")
+        self.assertEqual(len(платный.calls), 1, "платных обращений больше не делаем")
+
+    def test_режим_жёсткого_отказа(self):
+        app = self.make_app()
+        app.cfg["chat"]["limit_messages"] = 1
+        app.cfg["chat"]["при_исчерпании_лимита"] = "отказ"
+        app.send("Вопрос.")
+        вывод = self.capture(app.send, "Ещё вопрос.")
         self.assertIn("Канал перегружен", вывод)
+        self.assertFalse(app.deprived)
+
+    def test_пополнение_лимита_возвращает_модель(self):
+        app = self.make_app()
+        платный = app.client
+        app.cfg["chat"]["limit_messages"] = 1
+        app.send("Вопрос.")
+        self.capture(app.send, "Ещё.")
+        self.assertTrue(app.deprived)
+        self.capture(app.handle_command, "/лимит +5")
+        self.assertFalse(app.deprived)
+        app.client = платный          # снова подставляем подложную «модель»
+        self.capture(app.send, "Продолжаем.")
+        self.assertEqual(len(платный.calls), 2)
 
     def test_лимит_объёма_переписки(self):
         app = self.make_app()
+        платный = app.client
         app.cfg["chat"]["limit_chars"] = 20
         app.send("Довольно длинная реплика игроков.")
         self.assertLessEqual(app.chars_left(), 0)
-        вызовов = len(app.client.calls)
+        вызовов = len(платный.calls)
         self.capture(app.send, "Ещё.")
-        self.assertEqual(len(app.client.calls), вызовов)
+        self.assertEqual(len(платный.calls), вызовов)
+
+    def test_учёт_токенов_и_стоимости(self):
+        app = self.make_app()
+        app.cfg["deepseek"].update({"цена_за_1м_запрос": 1.0, "цена_за_1м_ответ": 2.0,
+                                    "валюта": "$"})
+        app.send("Вопрос.")
+        app.send("Ещё вопрос.")
+        данные = app.session.load()
+        self.assertEqual(данные["токенов_запрос"], 20)   # по 10 за обращение
+        self.assertEqual(данные["токенов_ответ"], 10)    # по 5 за обращение
+        строка = app.расход_строкой()
+        self.assertIn("30 токенов", строка)
+        self.assertIn("$", строка)
+
+    def test_без_цен_деньги_не_показываются(self):
+        app = self.make_app()
+        app.send("Вопрос.")
+        self.assertIsNone(app.стоимость())
+        self.assertNotIn("≈", app.расход_строкой())
 
     def test_ведущий_может_добавить_обращений(self):
         app = self.make_app()
