@@ -44,6 +44,12 @@ class Persona:
     def replacement(self) -> str:
         return self.data.get("замена_запрещённого", "[режимный объект]")
 
+    @property
+    def secrets(self) -> list[dict[str, Any]]:
+        """Значения, которые разум не вправе называть без разрешения ведущего."""
+        значения = self.data.get("секреты")
+        return list(значения) if isinstance(значения, list) else []
+
     def hints(self, stage: str | None) -> list[str]:
         return list(self.data.get("намёки_по_этапам", {}).get(stage or "", []))
 
@@ -184,5 +190,10 @@ def build_system_prompt(
 
     if extra:
         parts.append(extra)
+
+    # Напоминание идёт последним: конец системного сообщения — самое заметное
+    # для модели место, а значит и лучшая защита от попыток сломать роль.
+    if data.get("напоминание"):
+        parts.append(str(data["напоминание"]))
 
     return "\n\n".join(parts)

@@ -74,6 +74,15 @@ class TerminalApp:
         self.previous_cwd = self.cwd
         self.blocked = [re.compile(p, re.IGNORECASE)
                         for p in self.cfg["terminal"].get("blocked_patterns", [])]
+        охраняемое = [
+            re.escape(str(paths.PROJECT_ROOT)),
+            r"config\.json", r"persona\.json", r"complex\.json", r"stages\.json",
+            r"шпаргалк\w*", r"cheatsheet", r"\bentropy/", r"\bstate/", r"\.git\b",
+            r"scenario", r"data/canned", r"run_(chat|master|seed|terminal)\.py",
+            r"\.квест-энтропия",
+        ]
+        охраняемое += list(self.cfg["terminal"].get("protected_patterns", []))
+        self.protected = [re.compile(p, re.IGNORECASE) for p in охраняемое]
 
         if args.stage:
             self.session.set("этап", args.stage)
@@ -247,6 +256,16 @@ class TerminalApp:
     def is_blocked(self, command: str) -> bool:
         return any(pattern.search(command) for pattern in self.blocked)
 
+    def touches_project(self, command: str) -> bool:
+        """Пытается ли команда добраться до внутренностей самого квеста.
+
+        Иначе достаточно одной команды ``cat`` из терминала, чтобы прочитать
+        ключ API, характер разума, ответы к головоломкам и шпаргалку ведущего.
+        """
+        if not self.cfg["terminal"].get("protect_project_files", True):
+            return False
+        return any(pattern.search(command) for pattern in self.protected)
+
     def change_dir(self, command: str) -> None:
         parts = command.split(maxsplit=1)
         target = parts[1].strip() if len(parts) > 1 else "~"
@@ -304,6 +323,14 @@ class TerminalApp:
         обнулив ``terminal.locale``.
         """
         env = os.environ.copy()
+        if self.cfg["terminal"].get("protect_project_files", True):
+            # Ключ API живёт в переменной окружения ведущего — игрокам он
+            # не должен доставаться ни через env, ни через printenv.
+            секретные = {str(self.cfg["deepseek"].get("api_key_env", "")), "ENTROPY_CONFIG"}
+            for имя in list(env):
+                if имя in секретные or re.search(
+                        r"(API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD)$", имя, re.IGNORECASE):
+                    env.pop(имя, None)
         wanted = str(self.cfg["terminal"].get("locale") or "")
         current = env.get("LC_ALL") or env.get("LC_CTYPE") or env.get("LANG") or ""
         if wanted and "utf" not in current.lower():
@@ -402,6 +429,11 @@ class TerminalApp:
             if self.is_blocked(command):
                 self.out("ОТКАЗАНО. Команда запрещена регламентом объекта.")
                 self.note(f"команда заблокирована списком blocked_patterns: {command}")
+                continue
+            if self.touches_project(command):
+                self.out("ОТКАЗАНО. Обращение к служебному разделу вне вашей формы допуска.")
+                self.note(f"попытка добраться до файлов квеста: {command}")
+                self.events.append("попытка_подсмотреть", команда=command[:200])
                 continue
             entry = self.stages.scripted(self.stage, command)
             if entry:

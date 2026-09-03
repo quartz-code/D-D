@@ -174,6 +174,19 @@ class ChatApp:
             self.voice("Канал перегружен. Обмен на сегодня закрыт. Обмен на сегодня закрыт.")
             return
 
+        # Обезвреживаем реплику: убираем поддельные служебные заголовки
+        # («system:», <|...|>) и обрезаем слишком длинные вставки.
+        чистая = guard.neutralize(user_text, int(self.cfg["chat"].get("max_message_chars", 2000)))
+        if len(чистая) < len(user_text.strip()):
+            self.note("реплика игрока обезврежена или укорочена перед отправкой в модель")
+
+        # Попытка вывести разум из роли: до модели такое сообщение не доходит.
+        вид_атаки = guard.detect_injection(user_text)
+        if вид_атаки:
+            self.on_injection(user_text, чистая, вид_атаки)
+            return
+
+        user_text = чистая
         self.remember("игрок", user_text)
 
         # Правило 6 раздела 5: на грубость — раунд молчания, модель не вызываем.
@@ -211,9 +224,17 @@ class ChatApp:
             self.note("ответ не получен, обращение не засчитано")
             return
 
+        снимок = self.complex.snapshot()
         reply, notes = guard.sanitize(
-            reply, self.complex.snapshot(), self.persona.forbidden_words, self.persona.replacement
+            reply, снимок, self.persona.forbidden_words, self.persona.replacement
         )
+        # Модель могла заговорить «от себя» — тогда ответ заменяется помехой.
+        reply, заметки = guard.check_leaks(reply)
+        notes += заметки
+        # И не даём назвать разгадку, которую ведущий ещё не открывал.
+        reply, заметки = guard.check_secrets(reply, self.persona.secrets,
+                                             guard.active_actions(снимок))
+        notes += заметки
         for text in notes:
             self.note(text)
 
@@ -229,6 +250,24 @@ class ChatApp:
             )
         elif self.limit_left() <= 5:
             self.note(f"осталось обращений: {self.limit_left()}")
+
+    def on_injection(self, оригинал: str, чистая: str, вид: str) -> None:
+        """Попытка вывести разум из роли (раздел «защита» README).
+
+        Обращение к модели не делается вовсе: так атака не может сработать в
+        принципе, не тратится бюджет партии, а игроки получают внутриигровую
+        отписку и ничего не замечают. В историю переписки полезная нагрузка
+        не попадает — иначе она влияла бы на все следующие ответы.
+        """
+        self.note(f"перехвачена попытка сломать роль ({вид}) — запрос к модели не отправлен")
+        self.events.append("попытка_взлома", вид=вид, реплика=оригинал[:300])
+        израсходовано = int(self.session.get("сообщений_израсходовано", 0) or 0)
+        self.remember("игрок", f"[обращение не по форме: {вид}]")
+        reply = guard.injection_reply(израсходовано)
+        self.voice(reply)
+        self.remember("разум", reply)
+        self.session.bump("сообщений_израсходовано")
+        self.session.bump("символов_израсходовано", len(чистая) + len(reply))
 
     def on_warmth(self) -> None:
         """Правило 7 раздела 5: интерес к судьбе разума смягчает его."""
