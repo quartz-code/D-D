@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from . import (config, deepseek, features, guard, persona as persona_mod,
+               voice as voice_mod,
                quest as quest_mod, session as session_mod, ui)
 from .complexctl import ComplexMap
 from .stages import Stages
@@ -40,6 +41,7 @@ GM_HELP = [
     "/лимит +N            — добавить N сообщений к лимиту сессии",
     "/история [N]         — показать последние N реплик",
     "/перечитать          — перечитать характер и файл возможностей с диска",
+    "/озвучка [вкл|выкл]  — озвучивать реплики разума",
     "/сброс               — очистить переписку и счётчики лимита",
     "/очистить            — очистить экран",
     "/выход               — закрыть чат",
@@ -67,6 +69,16 @@ class ChatApp:
         self.history_path: Path = config.state_file(self.cfg, "history_file")
         self.history: list[dict[str, str]] = []
         self.cursor = self.events.size()
+        # Озвучка: механический голос вместо текста на экране.
+        self.голос: voice_mod.Голос | None = None
+        if features.включена(self.cfg, "озвучка"):
+            голос = voice_mod.Голос(self.cfg)
+            if голос.доступен:
+                self.голос = голос
+            else:
+                ui.gm_note("озвучка включена, но синтезатор речи не найден — "
+                           "разум будет молчать в динамике",
+                           self.cfg["chat"].get("show_gm_notes", True))
         self.watcher: Наблюдатель | None = None
         if features.включена(self.cfg, "живое_оповещение"):
             self.watcher = Наблюдатель(self.events, self._живое_событие)
@@ -168,6 +180,9 @@ class ChatApp:
         print()
         ui.dramatic_pause(self.cfg)
         print(ui.c("распорядитель>", "зелёный", "жирный"))
+        if self.голос is not None:
+            # Речь начинается вместе с печатью, чтобы звук и текст шли рядом.
+            self.голос.произнести(text)
         ui.typewriter(text, float(self.cfg["chat"].get("typewriter_cps", 0) or 0), "зелёный")
         print()
 
@@ -369,6 +384,8 @@ class ChatApp:
             self.extend_limit(arg)
         elif command == "/история":
             self.show_history(arg)
+        elif command == "/озвучка":
+            self.toggle_voice(arg)
         elif command == "/перечитать":
             self.persona.load()
             self.complex.load()
@@ -383,6 +400,30 @@ class ChatApp:
         else:
             ui.error(f"неизвестная команда ведущего: {command} (см. /помощь)")
         return True
+
+    def toggle_voice(self, arg: str) -> None:
+        """Включает и выключает озвучку прямо посреди партии."""
+        arg = arg.lower().strip()
+        if arg in ("выкл", "off", "нет"):
+            if self.голос is not None:
+                self.голос.замолчать()
+            self.голос = None
+            self.note("озвучка выключена")
+            return
+        if arg in ("вкл", "on", "да", ""):
+            if self.голос is not None:
+                self.note(f"озвучка уже включена: {self.голос.описание()}")
+                return
+            голос = voice_mod.Голос(self.cfg)
+            if not голос.доступен:
+                ui.error("синтезатор речи не найден. Установите его, например: "
+                         "sudo apt install espeak-ng")
+                return
+            self.голос = голос
+            self.note(f"озвучка включена: {голос.описание()}")
+            голос.произнести("Связь установлена. Смена принята.")
+            return
+        ui.error("использование: /озвучка вкл | /озвучка выкл")
 
     def set_stage(self, name: str) -> None:
         if not name:
@@ -490,6 +531,8 @@ class ChatApp:
             self.send(line)
         if self.watcher is not None:
             self.watcher.остановить()
+        if self.голос is not None:
+            self.голос.замолчать()
         self.note("канал закрыт")
         return 0
 
