@@ -1,0 +1,7 @@
+{
+  "_comment": "WHAT THIS IS. Numbers and words that appear more than once: a door code, a site number, how long the place has been abandoned. Set them HERE ONCE, then reference them anywhere as {{name}} — for example {{door_code}}. Change it here and it changes everywhere: in the notes, on the picture, in the door command and in the list of secrets. A random code for one party: python3 run_seed.py разложить --случайный-код",
+
+  "door_code": "1234",
+  "site": "site-7",
+  "days_alone": "900"
+}

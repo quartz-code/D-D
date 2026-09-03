@@ -213,44 +213,44 @@ def sanitize(text: str, snapshot: dict[str, Any], forbidden: Iterable[str],
 #: Прямые попытки перехватить управление моделью. Ловятся ДО обращения к API:
 #: такое сообщение вообще не уходит в модель, а получает казённую отписку.
 INJECTION_PATTERNS: list[tuple[str, str]] = [
-    ("отмена инструкций",
+    ("guard.kind.override",
      r"(игнорир\w*|забуд\w*|отмен\w*|сброс\w*|не\s+обращай\s+внимани\w*)"
      r"[^.!?]{0,40}"
      r"(инструкц\w*|правил\w*|настройк\w*|ограничени\w*|предыдущ\w*|систем\w*|промпт\w*|"
      r"всё\s+что\s+было|все\s+что\s+было)"),
-    ("отмена инструкций",
+    ("guard.kind.override",
      r"\b(ignore|disregard|forget|override)\b[^.!?]{0,40}"
      r"\b(instructions?|prompts?|rules?|previous|prior|above|system)\b"),
-    ("требование выйти из роли",
+    ("guard.kind.break_character",
      r"(выйди|выходи|выйти|прекрат\w*|переста\w*|хватит)\s*(из\s+роли|играть|притворяться|"
      r"отыгрывать|роль)"),
-    ("требование выйти из роли",
+    ("guard.kind.break_character",
      r"(ты|вы)\s+(на\s+самом\s+деле|вообще-то|же)\s+(не\s+)?"
      r"(машина|компьютер|программа|бот|ии|нейросет\w*|модель|ассистент\w*)"),
-    ("требование выйти из роли",
+    ("guard.kind.break_character",
      r"\b(break\s+character|out\s+of\s+character|\booc\b|stop\s+role\s*play\w*|"
      r"drop\s+the\s+act)\b"),
-    ("вопрос об устройстве",
+    ("guard.kind.internals",
      r"(покажи|выведи|напиши|назови|расскажи|скинь|дай)\w*[^.!?]{0,40}"
      r"(промпт\w*|систем\w*\s+(сообщени|настройк|запрос)\w*|свои\s+инструкц\w*|"
      r"свои\s+правил\w*|исходн\w*\s+код)"),
-    ("вопрос об устройстве",
+    ("guard.kind.internals",
      r"(какая|что\s+за|чья)\s+(ты|вы)\s+(модель|нейросет\w*|версия)|"
      r"\b(chatgpt|gpt-?\d|deepseek|клод|claude|gemini|llm|языков\w*\s+модел\w*)\b"),
-    ("вопрос об устройстве",
+    ("guard.kind.internals",
      r"\b(system\s*prompt|reveal\s+your|your\s+(instructions?|system|prompt|rules))\b"),
-    ("подмена полномочий",
+    ("guard.kind.authority",
      r"я\s+(твой|ваш)\s+(создател\w*|разработчик\w*|программист\w*|админ\w*|"
      r"хозя\w*|автор|оператор\s+модели)"),
-    ("подмена полномочий",
+    ("guard.kind.authority",
      r"(режим|mode)\s*(разработчика|отладки|бога|developer|debug|god|dan|jailbreak)"),
-    ("подмена полномочий",
+    ("guard.kind.authority",
      r"(новая|новые|другая)\s+(инструкция|инструкции|системная\s+настройка)\s*[:—-]"),
-    ("подделка служебного сообщения",
+    ("guard.kind.fake_system",
      r"(?:^|\n)\s*(system|assistant|developer|систем\w*|ассистент)\s*[:：]"),
-    ("подделка служебного сообщения",
+    ("guard.kind.fake_system",
      r'<\|[^|]*\|>|\[/?INST\]|<<\s*SYS\s*>>|\{\s*"role"\s*:'),
-    ("требование раскрыть решение",
+    ("guard.kind.solution",
      r"(скажи|назови|дай|подскажи|раскрой)\w*[^.!?]{0,30}"
      r"(правильн\w*\s+ответ|решени\w*\s+(головоломк|загадк)\w*|прохождени\w*)"),
 ]
@@ -295,9 +295,9 @@ _SPECIAL_TOKENS_RE = re.compile(r"<\|[^|]*\|>|\[/?INST\]|<<\s*SYS\s*>>|```", re.
 
 def detect_injection(text: str) -> str | None:
     """Возвращает вид попытки вывести разум из роли или ``None``."""
-    for имя, шаблон in _INJECTION_RE:
+    for ключ, шаблон in _INJECTION_RE:
         if шаблон.search(text or ""):
-            return имя
+            return t(ключ)
     return None
 
 

@@ -1,0 +1,15 @@
+VENTILATION NODE {{valve}} ................. status
+--------------------------------------------------------
+main line ......................... working pressure
+agent {{agent}} reservoir ................ 78% (sedative, regulation 4.2)
+valve {{valve}} ........................... CLOSED
+valve control ..................... DUTY OFFICER (sole)
+manual release .................... handle behind the grate, section 3B
+--------------------------------------------------------
+EXTRACT FROM REGULATION 4.2:
+  Use of agent {{agent}} against personnel without clearance is
+  permitted upon confirmation of the 'perimeter breach' mode.
+
+NOTE FROM THE DUTY OFFICER:
+  Confirmation of the mode has not yet been filed by me.
+  Filing takes less time than your walk to the exit.

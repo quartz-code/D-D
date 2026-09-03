@@ -109,12 +109,15 @@ class TestПакетыВРепозитории(unittest.TestCase):
         проверено = 0
         for каталог in (paths.TEMPLATES_DIR, paths.EXAMPLES_DIR):
             for файл in каталог.glob("*/world.json"):
+                from questkit import schema
                 данные = json.loads(файл.read_text(encoding="utf-8"))
-                for имя, комната in данные["комнаты"].items():
-                    self.assertEqual(комната.get("состояние"), "неактивно",
-                                     f"{файл.parent.name}/{имя}")
+                for имя, комната in schema.поле(данные, "комнаты", {}).items():
+                    self.assertEqual(schema.канон_состояния(
+                        schema.поле(комната, "состояние")), "неактивно",
+                        f"{файл.parent.name}/{имя}")
                     for поле in ("активные_действия", "история", "обновлено"):
-                        self.assertNotIn(поле, комната,
-                                         f"{файл.parent.name}/{имя}: осталось «{поле}»")
+                        for написание in schema.имена(поле):
+                            self.assertNotIn(написание, комната,
+                                             f"{файл.parent.name}/{имя}: осталось «{написание}»")
                 проверено += 1
         self.assertGreater(проверено, 0, "не найдено ни одного пакета")

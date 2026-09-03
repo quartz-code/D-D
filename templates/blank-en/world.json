@@ -1,0 +1,37 @@
+{
+  "_comment": "WHAT THIS IS. What the GM can do to the world: locations and the actions available there. The AI speaker may only MENTION these actions in conversation; they are applied solely from the GM console (run_master.py) and only after an explicit confirmation. Format: location → list of actions + state.",
+
+  "rooms": {
+    "first_room": {
+      "actions": ["lockdown", "cut_lights"],
+      "state": "inactive"
+    },
+    "second_room": {
+      "actions": ["lockdown", "system_hint"],
+      "state": "inactive"
+    }
+  },
+
+  "action_details": {
+    "_comment": "combat: true — confirming it raises the 'put the laptop down' signal. consequence — what it means at the table. phrases — words the guard uses to catch the model claiming an action that was never confirmed.",
+
+    "lockdown": {
+      "description": "Sealing the door of the room",
+      "combat": true,
+      "consequence": "The party is locked in and needs a way out",
+      "phrases": ["door", "lock", "locked", "sealed", "bolt"]
+    },
+    "cut_lights": {
+      "description": "Cutting power to the lights",
+      "combat": false,
+      "consequence": "Darkness: disadvantage on perception without a light source",
+      "phrases": ["light", "lights", "dark", "power"]
+    },
+    "system_hint": {
+      "description": "The system volunteers the door code",
+      "combat": false,
+      "consequence": "The party gets the code {{door_code}} without a fight — a reward for a good conversation",
+      "phrases": ["code", "cipher", "password", "combination"]
+    }
+  }
+}

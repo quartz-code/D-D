@@ -1,0 +1,8 @@
+DOOR ................................. status
+--------------------------------------------------
+position .......................... CLOSED
+code lock ......................... operational, 4 digits
+attempts left ..................... unlimited
+--------------------------------------------------
+NOTE FROM THE SYSTEM:
+  The code is known to the duty system.

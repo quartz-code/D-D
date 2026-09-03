@@ -44,17 +44,35 @@ jobs:
           LC_ALL: C.UTF-8
           LANG: C.UTF-8
         run: |
-          for scenario in data/scenario/*.json; do
-            echo "--- $scenario ---"
-            python run_seed.py разложить --сценарий "$scenario" --корень /tmp/quest
-            python run_seed.py проверить --сценарий "$scenario" --корень /tmp/quest
-            python run_seed.py очистить  --сценарий "$scenario" --корень /tmp/quest --да
+          # Каждая раскладка каждого пакета должна собираться и проверяться.
+          for layout in templates/*/layout*.json examples/*/layout*.json; do
+            echo "--- $layout ---"
+            python run_seed.py разложить --раскладка "$layout" --корень /tmp/quest
+            python run_seed.py проверить --раскладка "$layout" --корень /tmp/quest
+            python run_seed.py очистить  --раскладка "$layout" --корень /tmp/quest --да
           done
 
-      - name: Проверка готовности (без сети)
+      - name: Проверка готовности каждого пакета (без сети)
         env:
           LC_ALL: C.UTF-8
           LANG: C.UTF-8
         run: |
-          python run_seed.py разложить
-          python run_master.py проверка
+          for pack in templates/blank-ru templates/blank-en \
+                      examples/entropy-complex-ru examples/entropy-complex-en; do
+            echo "--- $pack ---"
+            printf '{"content": "%s"}\n' "$pack" > config/config.json
+            python run_seed.py разложить
+            python run_master.py проверка
+          done
+          rm -f config/config.json
+
+      - name: Интерфейс на обоих языках
+        env:
+          LC_ALL: C.UTF-8
+          LANG: C.UTF-8
+        run: |
+          for lang in ru en; do
+            printf '{"ui": {"language": "%s"}}\n' "$lang" > config/config.json
+            python run_master.py помощь
+          done
+          rm -f config/config.json

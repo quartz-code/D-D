@@ -1,0 +1,13 @@
+AIRLOCK CHAMBER QUERY ................ running
+--------------------------------------------------
+pressure .......................... 101.1 kPa  [nominal]
+air composition ................... within tolerance
+outer pressure door ............... CLOSED, bolt engaged
+inner pressure door ............... OPEN
+observation camera 1 .............. faulty (12 years)
+observation camera 2 .............. ACTIVE
+--------------------------------------------------
+NOTE FROM THE DUTY OFFICER:
+  The presence of unregistered persons has been recorded.
+  Present a pass of the established form.
+  Present a pass of the established form.

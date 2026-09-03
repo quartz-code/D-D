@@ -1,0 +1,111 @@
+{
+  "_comment": "WHAT THIS IS. Which files to lay out on the players' machine. Every available type is shown here — keep the ones you need and delete the rest. 'solution' is for the GM only (it goes into the cheatsheet), 'hint' is what you can drop at the table.",
+
+  "title": "My Quest — main layout",
+  "root": "~/quest",
+  "marker": ".my-quest",
+
+  "directories": ["archive", "store"],
+
+  "files": [
+    {
+      "_type": "plain text — a note or an instruction",
+      "path": "READ_ME_FIRST.txt",
+      "type": "text",
+      "solution": "Entry point: tells the players about 'помощь' and 'связь'.",
+      "lines": [
+        "SHIFT MEMO",
+        "site {{site}}",
+        "==================",
+        "",
+        "1. Commands for your area — type: помощь",
+        "2. Link to the duty system — type: связь",
+        "3. A file extension is advisory."
+      ]
+    },
+    {
+      "_type": "event log — background of the story",
+      "path": "archive/journal.log",
+      "type": "log",
+      "solution": "Background: what happened here.",
+      "lines": [
+        "[day 1]   nominal",
+        "[day 2]   incident",
+        "[day 3]   no entries",
+        "[day {{days_alone}}] no entries"
+      ]
+    },
+    {
+      "_type": "key file: reading it switches the stage (see stages.json)",
+      "path": "archive/note.txt",
+      "type": "text",
+      "solution": "Reading this file moves the party to the 'finale' stage.",
+      "lines": ["A note found in the archive.", "Hint here where to go next."]
+    },
+    {
+      "_type": "compressed file under a misleading name: file → gunzip -c",
+      "path": "archive/index.txt",
+      "type": "gzip",
+      "solution": "Extension .txt, gzip inside. Solve with: file → gunzip -c index.txt",
+      "hint": "cat shows garbage — so it is not a text file.",
+      "lines": ["INDEX", "-----", "What the players learn by unpacking it."]
+    },
+    {
+      "_type": "picture under a misleading name: the code is drawn on it",
+      "path": "archive/map.dat",
+      "type": "png",
+      "scale": 6,
+      "captions": ["SITE 7", "KOD: {{door_code}}"],
+      "notes": {"Opis": "A note inside the file — visible with strings."},
+      "solution": "It is a PNG: file → mv map.dat map.png → open it. The code is {{door_code}}.",
+      "hint": "What is called a map is not a map.",
+      "_captions_note": "The built-in font is Latin only: Cyrillic will not render. Use Latin letters and digits."
+    },
+    {
+      "_type": "text in base64: base64 -d",
+      "path": "archive/protocol.b64",
+      "type": "base64",
+      "solution": "Solve with: base64 -d protocol.b64",
+      "lines": ["What the players read once they decode it."]
+    },
+    {
+      "_type": "lines written backwards: rev",
+      "path": "store/code.txt",
+      "type": "reversed",
+      "solution": "Solve with: rev code.txt. A fallback path to the code {{door_code}}.",
+      "lines": ["NOTE", "Door code: {{door_code}}"]
+    },
+    {
+      "_type": "lines in reverse order: tac",
+      "path": "store/route.txt",
+      "type": "reordered",
+      "solution": "Solve with: tac route.txt",
+      "lines": ["ROUTE (bottom to top)", "1. first point", "2. second point"]
+    },
+    {
+      "_type": "archive under a misleading name: unzip",
+      "path": "store/attachment.log",
+      "type": "zip",
+      "solution": "It is a zip. Solve with: file → unzip -l attachment.log → unzip",
+      "entries": {
+        "memo.txt": ["First embedded file."],
+        "reference.txt": ["Second embedded file."]
+      }
+    },
+    {
+      "_type": "tar archive: tar -tf / tar -xf",
+      "path": "store/backup.tar",
+      "type": "tar",
+      "solution": "A plain tar. Solve with: tar -tf backup.tar, then tar -xf",
+      "entries": {"clearance.txt": ["Contents of the embedded file."]}
+    },
+    {
+      "_type": "file with no read permission: chmod +r. Does not work as root!",
+      "path": "store/personnel_file.txt",
+      "type": "text",
+      "mode": "000",
+      "solution": "Mode 000: cat refuses. Solve with chmod +r. NOTE: as root the file reads anyway — play as a normal user.",
+      "lines": ["What the players read once they restore their read permission."]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+SENSORS, CORRIDOR 3 .................. query complete
+--------------------------------------------------------
+motion, section 3A ................ 4 heat sources
+motion, section 3B ................ no data (sensor removed)
+smoke ............................. nominal
+agent {{agent}} concentration ............ 0.00 mg/m3
+vent grates ....................... 6, CLOSED
+supply valve {{valve}} .................... serviceable, position 'closed'
+--------------------------------------------------------
+NOTE FROM THE DUTY OFFICER:
+  Four heat sources. The regulations permit zero.

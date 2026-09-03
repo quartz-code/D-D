@@ -1,0 +1,12 @@
+SPECIMEN ENCLOSURE, LAB B ............ status
+--------------------------------------------------------
+enclosure lock .................... ENGAGED
+glass integrity ................... crack, section 2
+internal mass sensor .............. 141 kg
+internal motion sensor ............ activity present
+lock power ........................ from the duty officer's loop
+--------------------------------------------------------
+NOTE FROM THE DUTY OFFICER:
+  The specimen is held in accordance with the regulations.
+  The specimen is not a subject for discussion.
+  The specimen is not a subject for discussion.

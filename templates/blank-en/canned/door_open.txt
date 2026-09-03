@@ -1,0 +1,5 @@
+CODE ENTERED ......................... {{door_code}}
+--------------------------------------------------
+digit check ....................... accepted
+
+BOLT WITHDRAWN. THE DOOR IS OPENING.

@@ -1,0 +1,3 @@
+CODE ENTERED ......................... rejected
+--------------------------------------------------
+mismatch; the attempt has been logged

@@ -1,0 +1,11 @@
+{
+  "_comment": "Quest constants — the only place they are set. Everywhere else they are referenced as {{name}}. Change it here and it changes everywhere. A random code for one party: python3 run_seed.py разложить --случайный-код",
+
+  "door_code": "4718",
+  "site": "12-K",
+  "days_alone": "4471",
+  "agent": "A-7",
+  "valve": "K-3",
+  "clearance": "3",
+  "handover_form": "7"
+}

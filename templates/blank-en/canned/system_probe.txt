@@ -1,0 +1,9 @@
+DUTY SYSTEM QUERY .................... running
+--------------------------------------------------
+This is a prepared answer: the command 'система --опрос'
+does not exist in the system, its output comes from here.
+
+This is how story-critical steps are done — steadier for
+the pace of play, and independent of what is installed.
+
+Constant references work in this text: site {{site}}.

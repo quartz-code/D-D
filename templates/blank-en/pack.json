@@ -1,0 +1,27 @@
+{
+  "_comment": "WHAT THIS IS. The manifest of your quest: its name and the labels players see. Copy the whole templates/blank-en folder into your own (say my-quest) and edit it. The engine knows nothing about the story — it all lives here and in the neighbouring files.",
+
+  "name": "My Quest",
+  "language": "en",
+  "author": "",
+  "description": "One or two sentences about the story and what the players do.",
+
+  "terminal": {
+    "_comment": "prompt — what stands before the path: 'site-7:~/archive$'. title — the banner on start. greeting — the first line of the welcome box.",
+    "prompt": "site-7",
+    "title": "SITE-7 · CONSOLE",
+    "greeting": "Service access terminal."
+  },
+
+  "chat": {
+    "_comment": "speaker — the name shown before each reply. title — the header of the conversation window.",
+    "title": "LINK TO THE DUTY SYSTEM",
+    "speaker": "system",
+    "greeting": "Service comms channel."
+  },
+
+  "layouts": {
+    "_comment": "Layouts shipped in this pack and what they are.",
+    "layout.json": "Main layout"
+  }
+}

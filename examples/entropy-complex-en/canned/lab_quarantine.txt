@@ -1,0 +1,11 @@
+QUARANTINE PROCEDURE LOG
+--------------------------------------------------------
+day 1    quarantine imposed on sector B
+day 1    request to lift quarantine — denied
+day 2    request to lift quarantine — denied
+day 2    attempt to open a door manually — prevented
+day 3    no requests
+day 4    no requests
+...
+day {{days_alone}} no requests
+--------------------------------------------------------

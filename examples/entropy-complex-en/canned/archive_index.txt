@@ -1,0 +1,13 @@
+LEVEL 1 ARCHIVE INDEX ................ partially damaged
+--------------------------------------------------------
+item 01  shift.log ................... integrity 100%
+item 02  index.txt ................... SIGNATURE DOES NOT MATCH EXTENSION
+item 03  section_map.dat ............. SIGNATURE DOES NOT MATCH EXTENSION
+item 04  protocol_5.b64 .............. representation: printable characters
+item 05  personnel_file_K.txt ........ access restricted (mode 000)
+item 06  attachment.log .............. container, embedded objects: 2
+--------------------------------------------------------
+REFERENCE: the actual format is determined by a signature
+utility. A file extension is advisory and may be changed.
+
+A file extension is advisory.

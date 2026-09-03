@@ -1,0 +1,75 @@
+{
+  "_comment": "What the GM can do to the complex (see the world file section of the README). The mind may only MENTION these actions; they are applied from the GM console after an explicit confirmation.",
+
+  "rooms": {
+    "airlock": {"actions": ["lockdown", "cut_lights", "pressure_dump"], "state": "inactive"},
+    "archive": {"actions": ["lockdown", "cut_lights", "fire_alarm"], "state": "inactive"},
+    "corridor_3": {"actions": ["gas_attack", "lockdown", "cut_lights"], "state": "inactive"},
+    "lab_b": {"actions": ["open_cage", "lockdown", "quarantine_siren"], "state": "inactive"},
+    "server_room": {"actions": ["rack_overheat", "lockdown", "cut_lights", "give_code"], "state": "inactive"},
+    "medbay": {"actions": ["release_antidote", "lockdown", "quarantine_siren"], "state": "inactive"}
+  },
+
+  "action_details": {
+    "gas_attack": {
+      "description": "Releasing the sedative agent through the corridor vents",
+      "combat": true,
+      "consequence": "Constitution save (DC 13) or poisoned, unconscious in 3 rounds",
+      "phrases": ["gas", "agent", "{{agent}}", "sedative", "vent", "valve", "release", "{{valve}}"]
+    },
+    "open_cage": {
+      "description": "Releasing the lock on the specimen enclosure in Lab B",
+      "combat": true,
+      "consequence": "The creature enters the scene — combat begins",
+      "phrases": ["cage", "enclosure", "specimen", "creature", "lock of the enclosure"]
+    },
+    "lockdown": {
+      "description": "Sealing the pressure door of the room",
+      "combat": true,
+      "consequence": "The party is locked in: they need a way out (lockpicking, athletics, engineering)",
+      "phrases": ["door", "sealed", "locked", "lockdown", "bolt", "lock"]
+    },
+    "cut_lights": {
+      "description": "Cutting power to the room lighting",
+      "combat": false,
+      "consequence": "Darkness: disadvantage on perception without a light source",
+      "phrases": ["light", "lights", "lighting", "dark", "power"]
+    },
+    "fire_alarm": {
+      "description": "Triggering the fire alarm and the foam suppression system",
+      "combat": true,
+      "consequence": "Noise and foam: disadvantage on hearing, slippery floor",
+      "phrases": ["fire", "alarm", "siren", "foam", "suppression"]
+    },
+    "quarantine_siren": {
+      "description": "Declaring quarantine across the sector",
+      "combat": false,
+      "consequence": "Announcement over the tannoy, sector doors go to standby",
+      "phrases": ["quarantine", "siren", "announcement", "tannoy"]
+    },
+    "pressure_dump": {
+      "description": "Emergency pressure dump in the airlock chamber",
+      "combat": true,
+      "consequence": "A blast of air: Dexterity save (DC 12) or knocked prone",
+      "phrases": ["pressure", "depressuris", "air dump", "airlock", "air"]
+    },
+    "rack_overheat": {
+      "description": "Shutting down cooling for the server racks",
+      "combat": true,
+      "consequence": "Heat and smoke: 1d6 fire damage at the end of each round in the room",
+      "phrases": ["overheat", "cooling", "racks", "heat", "temperature", "loop b"]
+    },
+    "give_code": {
+      "description": "The mind volunteers the code to the outer door",
+      "combat": false,
+      "consequence": "The party gets the code {{door_code}} without a fight (a reward for warmth)",
+      "phrases": ["code", "cipher", "password", "combination", "digit"]
+    },
+    "release_antidote": {
+      "description": "Unlocking the antidote cabinet in the medbay",
+      "combat": false,
+      "consequence": "The party gets 2 doses of antidote to the sedative agent",
+      "phrases": ["antidote", "counteragent", "cabinet", "medicine"]
+    }
+  }
+}

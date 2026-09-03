@@ -1,0 +1,12 @@
+COMPUTING CORE ....................... query
+--------------------------------------------------------
+racks in operation ................ 3 of 14
+cooling ........................... loop B, wear 91%
+continuous operation .............. 4 term. years (counter reset twice)
+last session with staff ........... 12 years 3 months ago
+unclosed orders ................... 1
+--------------------------------------------------------
+UNCLOSED ORDER:
+  'Shift accepted. Continue observation until further notice.'
+  No further notice has been received.
+  No further notice has been received.

@@ -1,0 +1,25 @@
+{
+  "_comment": "Content pack manifest. Everything that makes this quest what it is: name, language, window labels. The engine itself knows nothing about 'Entropy'.",
+
+  "name": "The Entropy Complex",
+  "language": "en",
+  "author": "",
+  "description": "An abandoned research complex run for years by a feral artificial mind. The players explore its file system through a terminal and talk to the mind, which believes itself to be the duty officer of a shift that never ended.",
+
+  "terminal": {
+    "prompt": "12-K",
+    "title": "COMPLEX 12-K · CONSOLE",
+    "greeting": "Service access terminal. Site 12-K."
+  },
+
+  "chat": {
+    "title": "LINK TO THE SITE DUTY OFFICER",
+    "speaker": "duty officer",
+    "greeting": "Site service comms."
+  },
+
+  "layouts": {
+    "layout.json": "Full layout: 22 files, an evening and more",
+    "layout-short.json": "Short layout: 9 files, one or two hours"
+  }
+}

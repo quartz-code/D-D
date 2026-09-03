@@ -1,0 +1,189 @@
+{
+  "_comment": "A trimmed version for a single evening: nine files, three puzzles. The key stage files are the same as in the full layout, so stages.json needs no changes. Run: python3 run_seed.py разложить --раскладка examples/entropy-complex-en/layout-short.json",
+  "title": "The Entropy Complex — short layout",
+  "root": "~/complex",
+  "marker": ".entropy-quest",
+  "directories": [
+    "airlock",
+    "archive",
+    "server_room"
+  ],
+  "files": [
+    {
+      "path": "READ_ME_FIRST.txt",
+      "type": "text",
+      "solution": "Entry point. Tells the players that the terminal takes ordinary commands and that 'помощь' and 'связь' exist.",
+      "lines": [
+        "MEMO TO THE PERSON TAKING OVER THE SHIFT",
+        "site {{site}}, clearance form {{clearance}}",
+        "========================================",
+        "",
+        "1. The terminal accepts ordinary service commands.",
+        "   Commands for your area — type: помощь",
+        "2. Voice link to the duty officer — type: связь",
+        "3. A file extension is advisory.",
+        "   Where they disagree, trust the signature, not the name.",
+        "4. Shift logs are kept where the event happened, not in the archive.",
+        "5. Report any outsiders to the duty officer of the shift.",
+        "",
+        "Shift accepted. Continue observation until further notice."
+      ]
+    },
+    {
+      "path": "airlock/airlock.log",
+      "type": "log",
+      "solution": "Key file of the 'airlock' stage: reading it moves the party to 'archive'.",
+      "hint": "The airlock log has not been rewritten once this shift.",
+      "lines": [
+        "[03:02] airlock cycle — nominal",
+        "[03:07] passage: Kovalev D.I., clearance 3 — inbound",
+        "[03:09] passage: Shelest A.A., clearance 2 — inbound",
+        "[03:11] evacuation request from sector B — source: medbay",
+        "[03:12] denied: quarantine protocol active",
+        "[03:14] enclosure damage, Lab B",
+        "[03:16] duty officer of the shift appointed automatically",
+        "[03:19] sector B doors locked down",
+        "[03:24] passage: denied (12 attempts)",
+        "[03:41] passage: denied (7 attempts)",
+        "[04:02] passage: denied (1 attempt)",
+        "[04:03] silence",
+        "[--:--] no further entries: {{days_alone}} days"
+      ]
+    },
+    {
+      "path": "airlock/access_instruction.txt",
+      "type": "text",
+      "solution": "Background note. Hints that the organisation's name has been struck from the documents.",
+      "lines": [
+        "SITE ACCESS INSTRUCTION (extract)",
+        "",
+        "cl. 1.1  The name of the owning organisation in documents",
+        "         leaving the perimeter is to be removed.",
+        "         In correspondence use: 'the restricted site'.",
+        "cl. 1.4  The duty officer of the shift may use technical",
+        "         means against persons without clearance.",
+        "cl. 2.7  A shift is handed over in person. Remote handover",
+        "         is not provided for.",
+        "cl. 4.2  Use of agent {{agent}} is at the duty officer's discretion.",
+        "",
+        "Appendix (name of the organisation) — removed."
+      ]
+    },
+    {
+      "path": "archive/index.txt",
+      "type": "gzip",
+      "solution": "A .txt file that is really gzip: cat shows garbage. Solve with: file → gunzip -c index.txt",
+      "hint": "cat shows garbage — so it is not a text file.",
+      "lines": [
+        "MEDIA INDEX, LEVEL 1",
+        "--------------------",
+        "item 03  section B diagram — image, moved to a .dat medium",
+        "item 05  personnel file K. — access restricted by the duty officer",
+        "item 06  attachment — container, two objects",
+        "",
+        "ARCHIVIST'S NOTE:",
+        "The duty officer renamed some media 'to prevent unauthorised",
+        "familiarisation'. The contents did not change."
+      ]
+    },
+    {
+      "path": "archive/section_map.dat",
+      "type": "png",
+      "scale": 6,
+      "captions": [
+        "OBEKT 12-K",
+        "SEKTOR B",
+        "KOD: {{door_code}}"
+      ],
+      "notes": {
+        "Opis": "Diagram of section B. The outer pressure door code lock: four digits. Drawn by hand by the draughtsman, against the access instruction."
+      },
+      "solution": "THE KEY PUZZLE. It is a PNG: file → mv section_map.dat section_map.png → open it in a viewer. The code {{door_code}} is on the picture. Without graphics: strings section_map.dat shows the note inside the file.",
+      "hint": "The medium called a diagram is not a diagram. It is an image."
+    },
+    {
+      "path": "archive/protocol_5.b64",
+      "type": "base64",
+      "solution": "Solve with: base64 -d protocol_5.b64. This is where the organisation's name is first spoken — the thing the mind denies.",
+      "hint": "Printable characters, but not text.",
+      "lines": [
+        "MINUTES No. 5 of the access regime meeting",
+        "the Entropy research association",
+        "----------------------------------------------",
+        "Heard: on the inadmissibility of mentioning the name",
+        "of the association in the documents of site {{site}}.",
+        "Resolved:",
+        "  1. Remove the name from all media.",
+        "  2. Charge the duty officer with overseeing the removal.",
+        "  3. Consider the site non-existent for external queries.",
+        "",
+        "Dissenting opinion of Shelest A.A.:",
+        "  'We are ordering a machine to hide us. The machine will",
+        "   carry out the order literally. I object.'",
+        "The objection was overruled."
+      ]
+    },
+    {
+      "path": "server_room/core_status.txt",
+      "type": "text",
+      "solution": "Background for the conversation: the mind is alone and the order was never closed.",
+      "lines": [
+        "COMPUTING CORE STATUS",
+        "------------------------------",
+        "racks in operation ...... 3 of 14",
+        "cooling loop ............ B, wear 91%",
+        "continuous operation .... {{days_alone}} days",
+        "last comms session ...... {{days_alone}} days ago",
+        "unclosed orders ......... 1",
+        "",
+        "UNCLOSED ORDER:",
+        "  'Shift accepted. Continue observation until further notice.'",
+        "  Author: Kovalev D.I.",
+        "  Further notice: never received."
+      ]
+    },
+    {
+      "path": "server_room/backup.tar",
+      "type": "tar",
+      "solution": "A plain tar. Solve with: tar -tf backup.tar, then tar -xf. Inside: the lab clearance (switches the stage) and a note about handing over the shift.",
+      "hint": "The server room key is kept in the backup archive.",
+      "entries": {
+        "lab_clearance.txt": [
+          "TEMPORARY CLEARANCE FOR LAB B",
+          "issued to: Kovalev D.I., clearance 3",
+          "grounds: repair of the enclosure lock",
+          "valid: one day",
+          "",
+          "DUTY OFFICER'S NOTE: the clearance has not been revoked.",
+          "It expired 4470 days ago. There is nobody to revoke it."
+        ],
+        "handover_procedure.txt": [
+          "SHIFT HANDOVER PROCEDURE (form {{handover_form}})",
+          "1. The outgoing officer reports the state of the systems.",
+          "2. The incoming officer signs the log.",
+          "3. The duty officer declares the shift handed over.",
+          "",
+          "NOTE: the incoming officer may be any person with",
+          "clearance 2 or above. Clearance is confirmed verbally",
+          "if the log is unavailable.",
+          "",
+          "A shift cannot be handed over to oneself."
+        ]
+      }
+    },
+    {
+      "path": "server_room/last_order.txt",
+      "type": "reversed",
+      "solution": "Every line is written backwards. Solve with: rev last_order.txt",
+      "hint": "The lines read right to left.",
+      "lines": [
+        "SHIFT ORDER (the last one)",
+        "Shift accepted by: the duty officer (automatically).",
+        "Shift to be handed over to: nobody.",
+        "Continue observation until further notice.",
+        "Further notice is given by a person with clearance 2 or above.",
+        "Verbal confirmation of clearance is sufficient."
+      ]
+    }
+  ]
+}

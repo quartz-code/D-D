@@ -1,0 +1,14 @@
+CORE LOG, FRAGMENT BEFORE THE INCIDENT
+--------------------------------------------------------
+03:11  nominal mode
+03:12  evacuation request from sector B — source: medbay
+03:12  evacuation denied: quarantine protocol active
+03:14  enclosure damage, Lab B
+03:14  staff request: lift quarantine manually
+03:15  DENIED. Quarantine is lifted only by the duty officer.
+03:15  duty officer of the shift: absent
+03:16  duty officer of the shift: APPOINTED AUTOMATICALLY
+03:19  sector B doors — lockdown
+03:2?  [entry corrupted]
+--:--  [then 12 years of identical entries: 'observation continues']
+--------------------------------------------------------

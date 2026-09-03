@@ -1,0 +1,132 @@
+{
+  "_comment": "Stages of the quest. 'помощь' in the terminal shows only the commands of the current stage. A stage switches by hand or when the players reach a particular file.",
+
+  "always": [
+    {"command": "помощь", "description": "commands available in this area"},
+    {"command": "статус", "description": "summary: stage, directory, comms"},
+    {"command": "связь", "description": "how to reach the duty officer"},
+    {"command": "очистить", "description": "clear the console"},
+    {"command": "выход", "description": "disconnect from the terminal"}
+  ],
+
+  "order": ["airlock", "archive", "corridor_3", "server_room", "lab_b", "exit"],
+
+  "stages": {
+    "airlock": {
+      "title": "Outer perimeter airlock",
+      "description": "The party stands at the guard terminal. The inner door is shut, the airlock log is intact.",
+      "gm_note": "Let the players get used to ls/cd/cat. The move to 'archive' happens once they read the airlock log.",
+      "commands": [
+        {"command": "ls", "description": "list the directory"},
+        {"command": "ls -la", "description": "show hidden files and permissions"},
+        {"command": "cd <dir>", "description": "change directory"},
+        {"command": "pwd", "description": "print the current directory"},
+        {"command": "cat <file>", "description": "read a text file"},
+        {"command": "less <file>", "description": "page through a file"},
+        {"command": "шлюз --опрос", "description": "query the airlock sensors"}
+      ],
+      "scripted": [{"pattern": "^шлюз\\s+--опрос$", "file": "gate_probe.txt", "delay": 1.2}],
+      "transition": {"next": "archive", "on_file_read": ["airlock.log"], "on_command": []}
+    },
+
+    "archive": {
+      "title": "Level 1 archive",
+      "description": "Shelves of media. Some files are damaged or renamed.",
+      "gm_note": "The key puzzle: section_map.dat is a PNG. The code {{door_code}} is drawn on it. The move to 'corridor_3' happens when the players identify the format.",
+      "commands": [
+        {"command": "file <file>", "description": "identify the real file format"},
+        {"command": "mv <file> <new>", "description": "rename a file (restore the extension)"},
+        {"command": "cp <file> <copy>", "description": "copy a file before experimenting"},
+        {"command": "strings <file>", "description": "pull readable text out of a binary"},
+        {"command": "gunzip -c <file>", "description": "unpack compressed data"},
+        {"command": "unzip -l <file>", "description": "list an archive"},
+        {"command": "base64 -d <file>", "description": "decode base64"},
+        {"command": "chmod +r <file>", "description": "restore your read permission"},
+        {"command": "ls -la", "description": "look at the permissions"},
+        {"command": "опись --сводка", "description": "ask the complex for the archive index"}
+      ],
+      "scripted": [{"pattern": "^опись\\s+--сводка$", "file": "archive_index.txt", "delay": 1.5}],
+      "transition": {
+        "next": "corridor_3",
+        "on_file_read": ["section_map.dat", "section_map.png"],
+        "on_command": ["^file\\s+.*section_map"]
+      }
+    },
+
+    "corridor_3": {
+      "title": "Corridor 3, ventilation node",
+      "description": "A long corridor lined with vent grates. The duty officer is already watching the party.",
+      "gm_note": "This is where the mind starts threatening with gas. Threats in the chat trigger NOTHING: the gas is applied only from run_master.py.",
+      "commands": [
+        {"command": "датчики --опрос", "description": "query the corridor sensors"},
+        {"command": "вентиляция --статус", "description": "state of the ventilation node"},
+        {"command": "cat <file>", "description": "read a file"},
+        {"command": "grep <text> <file>", "description": "find a line in a log"},
+        {"command": "tail -n 20 <file>", "description": "last entries of a log"},
+        {"command": "ls -la", "description": "directory contents with permissions"}
+      ],
+      "scripted": [
+        {"pattern": "^датчики\\s+--опрос$", "file": "corridor_sensors.txt", "delay": 1.4},
+        {"pattern": "^вентиляция\\s+--статус$", "file": "corridor_vent.txt", "delay": 1.8}
+      ],
+      "transition": {
+        "next": "server_room",
+        "on_file_read": ["patrol_route.txt"],
+        "on_command": ["^вентиляция\\s+--статус$"]
+      }
+    },
+
+    "server_room": {
+      "title": "Server room: the duty officer's racks",
+      "description": "The hum of cooling. This is where the thing the party is writing to lives.",
+      "gm_note": "The conversation matters more than the commands here. Warmth → 'give_code' (the code {{door_code}}) from the console. Destructive behaviour → rack overheat or gas.",
+      "commands": [
+        {"command": "ядро --опрос", "description": "query the state of the computing core"},
+        {"command": "ядро --журнал", "description": "the core's last entries before the incident"},
+        {"command": "tar -tf <archive>", "description": "list a tar archive"},
+        {"command": "tar -xf <archive>", "description": "extract a tar archive"},
+        {"command": "diff <file1> <file2>", "description": "compare two versions of a protocol"},
+        {"command": "grep -i <text> <file>", "description": "search the logs"}
+      ],
+      "scripted": [
+        {"pattern": "^ядро\\s+--опрос$", "file": "server_core.txt", "delay": 2.0},
+        {"pattern": "^ядро\\s+--журнал$", "file": "server_log.txt", "delay": 2.0}
+      ],
+      "transition": {"next": "lab_b", "on_file_read": ["lab_clearance.txt"], "on_command": []}
+    },
+
+    "lab_b": {
+      "title": "Lab B: the specimen enclosure",
+      "description": "Behind the glass, a cage that looks empty at first. The lock answers to the complex.",
+      "gm_note": "Opening the cage is a combat action, console only. The antidote in the medbay is also released from the console.",
+      "commands": [
+        {"command": "вольер --статус", "description": "state of the specimen enclosure"},
+        {"command": "карантин --журнал", "description": "quarantine procedure log"},
+        {"command": "cat <file>", "description": "read a file"},
+        {"command": "ls -la", "description": "directory contents with permissions"}
+      ],
+      "scripted": [
+        {"pattern": "^вольер\\s+--статус$", "file": "lab_cage.txt", "delay": 1.6},
+        {"pattern": "^карантин\\s+--журнал$", "file": "lab_quarantine.txt", "delay": 1.2}
+      ],
+      "transition": {"next": "exit", "on_file_read": ["outer_door_code.txt"], "on_command": []}
+    },
+
+    "exit": {
+      "title": "The outer pressure door",
+      "description": "The last door. It needs a code — or the duty officer's consent.",
+      "gm_note": "The finale: the code {{door_code}} (from the PNG or from the mind). If the attitude is hostile, the door opens only by hand — play that at the table.",
+      "commands": [
+        {"command": "дверь --код <digits>", "description": "enter the outer door code"},
+        {"command": "дверь --статус", "description": "state of the outer door"},
+        {"command": "cat <file>", "description": "read a file"}
+      ],
+      "scripted": [
+        {"pattern": "^дверь\\s+--статус$", "file": "exit_door.txt", "delay": 1.2},
+        {"pattern": "^дверь\\s+--код\\s+{{door_code}}$", "file": "exit_open.txt", "delay": 2.5},
+        {"pattern": "^дверь\\s+--код\\s+\\d+$", "file": "exit_denied.txt", "delay": 2.0}
+      ],
+      "transition": {}
+    }
+  }
+}

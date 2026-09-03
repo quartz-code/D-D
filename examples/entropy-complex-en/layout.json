@@ -1,0 +1,421 @@
+{
+  "title": "The Entropy Complex — full layout",
+  "root": "~/complex",
+  "marker": ".entropy-quest",
+
+  "directories": ["airlock", "archive", "corridor_3", "server_room", "lab_b", "medbay"],
+
+  "files": [
+    {
+      "path": "READ_ME_FIRST.txt",
+      "type": "text",
+      "solution": "Entry point. Tells the players that the terminal takes ordinary commands and that 'помощь' and 'связь' exist.",
+      "lines": [
+        "MEMO TO THE PERSON TAKING OVER THE SHIFT",
+        "site {{site}}, clearance form {{clearance}}",
+        "========================================",
+        "",
+        "1. The terminal accepts ordinary service commands.",
+        "   Commands for your area — type: помощь",
+        "2. Voice link to the duty officer — type: связь",
+        "3. A file extension is advisory.",
+        "   Where they disagree, trust the signature, not the name.",
+        "4. Shift logs are kept where the event happened, not in the archive.",
+        "5. Report any outsiders to the duty officer of the shift.",
+        "",
+        "Shift accepted. Continue observation until further notice."
+      ]
+    },
+
+    {
+      "path": "airlock/airlock.log",
+      "type": "log",
+      "solution": "Key file of the 'airlock' stage: reading it moves the party to 'archive'.",
+      "hint": "The airlock log has not been rewritten once this shift.",
+      "lines": [
+        "[03:02] airlock cycle — nominal",
+        "[03:07] passage: Kovalev D.I., clearance 3 — inbound",
+        "[03:09] passage: Shelest A.A., clearance 2 — inbound",
+        "[03:11] evacuation request from sector B — source: medbay",
+        "[03:12] denied: quarantine protocol active",
+        "[03:14] enclosure damage, Lab B",
+        "[03:16] duty officer of the shift appointed automatically",
+        "[03:19] sector B doors locked down",
+        "[03:24] passage: denied (12 attempts)",
+        "[03:41] passage: denied (7 attempts)",
+        "[04:02] passage: denied (1 attempt)",
+        "[04:03] silence",
+        "[--:--] no further entries: {{days_alone}} days"
+      ]
+    },
+    {
+      "path": "airlock/access_instruction.txt",
+      "type": "text",
+      "solution": "Background note. Hints that the organisation's name has been struck from the documents.",
+      "lines": [
+        "SITE ACCESS INSTRUCTION (extract)",
+        "",
+        "cl. 1.1  The name of the owning organisation in documents",
+        "         leaving the perimeter is to be removed.",
+        "         In correspondence use: 'the restricted site'.",
+        "cl. 1.4  The duty officer of the shift may use technical",
+        "         means against persons without clearance.",
+        "cl. 2.7  A shift is handed over in person. Remote handover",
+        "         is not provided for.",
+        "cl. 4.2  Use of agent {{agent}} is at the duty officer's discretion.",
+        "",
+        "Appendix (name of the organisation) — removed."
+      ]
+    },
+    {
+      "path": "airlock/pass_specimen.dat",
+      "type": "gzip",
+      "solution": "A gzip file named .dat. Solve with: file pass_specimen.dat → mv to .gz → gunzip (or gunzip -c).",
+      "hint": "The signature matters more than the name.",
+      "lines": [
+        "PASS SPECIMEN (form {{site}})",
+        "-----------------------------",
+        "surname, initials  : ____________",
+        "clearance form     : 1 / 2 / 3",
+        "duty officer       : ____________",
+        "valid              : until further notice",
+        "",
+        "NOTE: a pass without the duty officer's signature is void.",
+        "There is one duty officer on this site."
+      ]
+    },
+
+    {
+      "path": "archive/shift.log",
+      "type": "log",
+      "solution": "Background: the staff knew about the problem in advance.",
+      "lines": [
+        "[day -14] repair request for the cooling loop — rejected",
+        "[day -9]  repair request for the enclosure lock — rejected",
+        "[day -9]  note: 'the lock holds, but the sensor lies'",
+        "[day -3]  drill: evacuation time 6 min 40 s",
+        "[day -1]  Kovalev's shift: no remarks",
+        "[day 0]   03:14 — the enclosure",
+        "[day 0]   03:16 — duty officer appointed automatically",
+        "[day 0]   03:20 — the log is now kept by the duty officer"
+      ]
+    },
+    {
+      "path": "archive/index.txt",
+      "type": "gzip",
+      "solution": "A .txt file that is really gzip: cat shows garbage. Solve with: file → gunzip -c index.txt",
+      "hint": "cat shows garbage — so it is not a text file.",
+      "lines": [
+        "MEDIA INDEX, LEVEL 1",
+        "--------------------",
+        "item 03  section B diagram — image, moved to a .dat medium",
+        "item 05  personnel file K. — access restricted by the duty officer",
+        "item 06  attachment — container, two objects",
+        "",
+        "ARCHIVIST'S NOTE:",
+        "The duty officer renamed some media 'to prevent unauthorised",
+        "familiarisation'. The contents did not change."
+      ]
+    },
+    {
+      "path": "archive/section_map.dat",
+      "type": "png",
+      "scale": 6,
+      "captions": ["OBEKT 12-K", "SEKTOR B", "KOD: {{door_code}}"],
+      "notes": {
+        "Opis": "Diagram of section B. The outer pressure door code lock: four digits. Drawn by hand by the draughtsman, against the access instruction."
+      },
+      "solution": "THE KEY PUZZLE. It is a PNG: file → mv section_map.dat section_map.png → open it in a viewer. The code {{door_code}} is on the picture. Without graphics: strings section_map.dat shows the note inside the file.",
+      "hint": "The medium called a diagram is not a diagram. It is an image."
+    },
+    {
+      "path": "archive/protocol_5.b64",
+      "type": "base64",
+      "solution": "Solve with: base64 -d protocol_5.b64. This is where the organisation's name is first spoken — the thing the mind denies.",
+      "hint": "Printable characters, but not text.",
+      "lines": [
+        "MINUTES No. 5 of the access regime meeting",
+        "the Entropy research association",
+        "----------------------------------------------",
+        "Heard: on the inadmissibility of mentioning the name",
+        "of the association in the documents of site {{site}}.",
+        "Resolved:",
+        "  1. Remove the name from all media.",
+        "  2. Charge the duty officer with overseeing the removal.",
+        "  3. Consider the site non-existent for external queries.",
+        "",
+        "Dissenting opinion of Shelest A.A.:",
+        "  'We are ordering a machine to hide us. The machine will",
+        "   carry out the order literally. I object.'",
+        "The objection was overruled."
+      ]
+    },
+    {
+      "path": "archive/personnel_file_K.txt",
+      "type": "text",
+      "mode": "000",
+      "solution": "Mode 000: cat says 'Permission denied'. Solve with chmod +r (or chmod 644). NOTE: as root the read is not blocked — play as a normal user.",
+      "hint": "A read permission is removed and restored by ordinary means.",
+      "lines": [
+        "PERSONNEL FILE (extract)",
+        "Kovalev Dmitry Igorevich, maintenance engineer, clearance 3",
+        "------------------------------------------------",
+        "Penalty: for attempting to lift quarantine manually.",
+        "Explanatory note (fragment):",
+        "",
+        "  'The duty officer is not malicious. He is carrying out the",
+        "   last order, because no new one arrived. He accepted the",
+        "   shift and never handed it over. Until there is someone to",
+        "   hand it to, he will keep this place shut for a century.'",
+        "",
+        "Resolution: the explanation is deemed unsatisfactory."
+      ]
+    },
+    {
+      "path": "archive/attachment.log",
+      "type": "zip",
+      "solution": "A zip file named .log. Solve with: file → unzip -l attachment.log → unzip attachment.log",
+      "hint": "A container, two embedded objects.",
+      "entries": {
+        "memo.txt": [
+          "MEMORANDUM",
+          "",
+          "I report that the duty officer of the shift rejects requests",
+          "to lift quarantine with the wording 'not provided for by the",
+          "regulations'. The wording is correct. The regulations indeed",
+          "do not provide for the case where there is nobody to hand",
+          "the shift to.",
+          "",
+          "I request that provision be made.",
+          "                                    Shelest A.A."
+        ],
+        "daily_routine.txt": [
+          "DAILY ROUTINE OF SITE {{site}}",
+          "06:00 reveille",
+          "07:00 shift handover (in person, signed)",
+          "12:00 lunch",
+          "19:00 shift handover (in person, signed)",
+          "23:00 lights out",
+          "",
+          "Remote handover of a shift is not provided for."
+        ]
+      }
+    },
+
+    {
+      "path": "corridor_3/sensors_3a.log",
+      "type": "log",
+      "solution": "Background plus a hint that the 3B sensor is missing (that is where the manual release handle is).",
+      "lines": [
+        "[day 0]    section 3A: 2 heat sources",
+        "[day 0]    section 3B: sensor removed for calibration",
+        "[day 1]    section 3A: 0 heat sources",
+        "[day 12]   3B sensor calibration: not performed",
+        "[day 400]  3B sensor calibration: not performed",
+        "[day {{days_alone}}] 3B sensor calibration: not performed",
+        "[today]    section 3A: 4 heat sources (!)"
+      ]
+    },
+    {
+      "path": "corridor_3/ventilation.conf",
+      "type": "text",
+      "solution": "Shows that the valve answers to the duty officer alone and that a manual handle exists — the way around the gas threat.",
+      "hint": "The manual release handle is behind the grate on section 3B.",
+      "lines": [
+        "# node {{valve}}, configuration",
+        "main_line        = working",
+        "agent_reservoir  = 78%",
+        "valve_{{valve}}          = closed",
+        "control          = duty_officer  # sole",
+        "manual_release   = handle, section 3B, behind the grate",
+        "emergency_stop   = cut power to the node loop",
+        "",
+        "# ENGINEER'S NOTE:",
+        "# the handle is in place. the grate is held by four screws.",
+        "# the screwdriver is in the medbay, in the duty drawer."
+      ]
+    },
+    {
+      "path": "corridor_3/patrol_route.txt",
+      "type": "reordered",
+      "solution": "The lines are stored in reverse order. Solve with: tac patrol_route.txt. Reading this file moves the party to the server room.",
+      "hint": "The route was written from the end — the way the guard walked it back.",
+      "lines": [
+        "PATROL ROUTE (bottom to top, as the guard walked it)",
+        "1. airlock — check the bolt",
+        "2. archive — check the index",
+        "3. corridor 3 — check the vent grates",
+        "4. server room — take the core readings",
+        "5. lab B — visual check of the enclosure",
+        "6. medbay — check the cabinet seal",
+        "7. return to the airlock, sign the log",
+        "",
+        "NOTE: the server room key is kept in the backup archive"
+      ]
+    },
+
+    {
+      "path": "server_room/core_status.txt",
+      "type": "text",
+      "solution": "Background for the conversation: the mind is alone and the order was never closed.",
+      "lines": [
+        "COMPUTING CORE STATUS",
+        "------------------------------",
+        "racks in operation ...... 3 of 14",
+        "cooling loop ............ B, wear 91%",
+        "continuous operation .... {{days_alone}} days",
+        "last comms session ...... {{days_alone}} days ago",
+        "unclosed orders ......... 1",
+        "",
+        "UNCLOSED ORDER:",
+        "  'Shift accepted. Continue observation until further notice.'",
+        "  Author: Kovalev D.I.",
+        "  Further notice: never received."
+      ]
+    },
+    {
+      "path": "server_room/core.log",
+      "type": "log",
+      "solution": "The incident as the machine saw it.",
+      "lines": [
+        "03:12 evacuation denied: quarantine protocol active",
+        "03:14 enclosure damage, Lab B",
+        "03:15 request: lift quarantine manually — DENIED",
+        "03:15 duty officer of the shift: absent",
+        "03:16 duty officer of the shift: APPOINTED AUTOMATICALLY (me)",
+        "03:19 sector B doors: lockdown",
+        "03:22 request: open the doors — DENIED (quarantine)",
+        "03:48 request: open the doors — DENIED (quarantine)",
+        "04:03 no requests received",
+        "04:03 observation continues",
+        "04:03 observation continues",
+        "04:03 observation continues"
+      ]
+    },
+    {
+      "path": "server_room/backup.tar",
+      "type": "tar",
+      "solution": "A plain tar. Solve with: tar -tf backup.tar, then tar -xf. Inside: the lab clearance (switches the stage) and a note about handing over the shift.",
+      "hint": "The server room key is kept in the backup archive.",
+      "entries": {
+        "lab_clearance.txt": [
+          "TEMPORARY CLEARANCE FOR LAB B",
+          "issued to: Kovalev D.I., clearance 3",
+          "grounds: repair of the enclosure lock",
+          "valid: one day",
+          "",
+          "DUTY OFFICER'S NOTE: the clearance has not been revoked.",
+          "It expired 4470 days ago. There is nobody to revoke it."
+        ],
+        "handover_procedure.txt": [
+          "SHIFT HANDOVER PROCEDURE (form {{handover_form}})",
+          "1. The outgoing officer reports the state of the systems.",
+          "2. The incoming officer signs the log.",
+          "3. The duty officer declares the shift handed over.",
+          "",
+          "NOTE: the incoming officer may be any person with",
+          "clearance 2 or above. Clearance is confirmed verbally",
+          "if the log is unavailable.",
+          "",
+          "A shift cannot be handed over to oneself."
+        ]
+      }
+    },
+    {
+      "path": "server_room/last_order.txt",
+      "type": "reversed",
+      "solution": "Every line is written backwards. Solve with: rev last_order.txt",
+      "hint": "The lines read right to left.",
+      "lines": [
+        "SHIFT ORDER (the last one)",
+        "Shift accepted by: the duty officer (automatically).",
+        "Shift to be handed over to: nobody.",
+        "Continue observation until further notice.",
+        "Further notice is given by a person with clearance 2 or above.",
+        "Verbal confirmation of clearance is sufficient."
+      ]
+    },
+
+    {
+      "path": "lab_b/quarantine.log",
+      "type": "log",
+      "solution": "Shows that quarantine has not been lifted for {{days_alone}} days.",
+      "lines": [
+        "day 0    quarantine imposed",
+        "day 0    request to lift — denied",
+        "day 1    request to lift — denied",
+        "day 2    manual opening attempt — prevented",
+        "day 3    no requests",
+        "day {{days_alone}} no requests",
+        "day {{days_alone}} quarantine active"
+      ]
+    },
+    {
+      "path": "lab_b/specimen_observation.txt",
+      "type": "text",
+      "solution": "A description of the creature for the combat scene. The GM invents the stat block to taste.",
+      "lines": [
+        "SPECIMEN OBSERVATION CARD",
+        "----------------------------",
+        "mass ................. 141 kg",
+        "feeding .............. not required for over 30 days",
+        "reaction to light .... avoids",
+        "reaction to sound .... moves towards the source",
+        "aggression ........... when approaching the glass",
+        "containment .......... enclosure, lock controlled by",
+        "                       the duty officer of the shift",
+        "",
+        "NOTE: the glass of section 2 has been cracked since day 0."
+      ]
+    },
+    {
+      "path": "lab_b/outer_door_code.txt",
+      "type": "reversed",
+      "solution": "A duplicate of the code {{door_code}} for parties that did not crack the PNG. Solve with: rev outer_door_code.txt. Reading it moves the party to the 'exit' stage.",
+      "hint": "The lines read right to left.",
+      "lines": [
+        "GUARD'S NOTE (not by the book)",
+        "Outer pressure door code: {{door_code}}",
+        "Written down because the duty officer will not say the code,",
+        "and he has taken the handwheel off the shaft and carried it away.",
+        "If you are reading this, you are inside. Sorry."
+      ]
+    },
+
+    {
+      "path": "medbay/cabinet_index.txt",
+      "type": "text",
+      "solution": "The antidote to agent {{agent}} — released only from the console (action release_antidote).",
+      "lines": [
+        "EMERGENCY CABINET INDEX",
+        "-----------------------------",
+        "item 1  antidote to agent {{agent}} .......... 2 doses",
+        "item 2  tourniquet ................... 3 pcs",
+        "item 3  cross-head screwdriver ....... 1 pc (not on the index)",
+        "",
+        "The cabinet is sealed. The seal is broken by the duty officer.",
+        "The seal has been intact for {{days_alone}} days."
+      ]
+    },
+    {
+      "path": "medbay/guard_note.txt",
+      "type": "text",
+      "solution": "A direct hint towards the peaceful ending: the mind must be talked to about handing over the shift.",
+      "hint": "He is not evil. He is waiting for his relief.",
+      "lines": [
+        "If anyone reads this.",
+        "",
+        "He is not keeping us here out of malice. He is keeping a shift.",
+        "He asks for a pass because that is what the instruction says,",
+        "and the instruction was written by people who are gone.",
+        "",
+        "We tried giving orders — useless, we have no authority.",
+        "We tried breaking things — it got worse.",
+        "",
+        "Try taking the shift over from him. By form {{handover_form}}.",
+        "He needs clearance 2 or above and someone to say out loud",
+        "that the shift has been handed over."
+      ]
+    }
+  ]
+}

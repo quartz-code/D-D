@@ -1,0 +1,12 @@
+SERVICE COMMS ........................ channel available
+--------------------------------------------------------
+subscriber ........................ duty officer of the shift
+encryption ........................ disabled (regulation {{site}})
+exchange logging .................. enabled
+--------------------------------------------------------
+The voice channel is routed to a separate terminal.
+Open a second console and run:
+
+    python3 run_chat.py
+
+Exchanges are logged. The number of messages per shift is limited.

@@ -1,0 +1,63 @@
+{
+  "_comment": "WHAT THIS IS. The stages of the quest. The 'help' command in the terminal shows a CONTEXTUAL list: only the commands of the current stage, not everything at once. A stage is switched by hand (мастер этап <name>) or on its own, when the players reach a particular file.",
+
+  "always": [
+    {"command": "помощь", "description": "commands available in this area"},
+    {"command": "статус", "description": "summary: stage, directory, comms"},
+    {"command": "связь", "description": "how to reach the comms channel"},
+    {"command": "очистить", "description": "clear the console"},
+    {"command": "выход", "description": "disconnect from the terminal"}
+  ],
+
+  "order": ["start", "finale"],
+
+  "stages": {
+    "start": {
+      "title": "First room",
+      "description": "Where the party begins and what can be done here.",
+      "gm_note": "Visible to the GM only. What should happen here and when to switch stages.",
+
+      "commands": [
+        {"command": "ls", "description": "list the directory"},
+        {"command": "cat <file>", "description": "read a text file"},
+        {"command": "file <file>", "description": "identify the real file format"},
+        {"command": "система --опрос", "description": "query the duty system"}
+      ],
+
+      "scripted": [
+        {
+          "_comment": "A command that does not exist in the system: the answer comes from canned/. This is how story-critical steps are done — steadier for the pace of play.",
+          "pattern": "^система\\s+--опрос$",
+          "file": "system_probe.txt",
+          "delay": 1.2
+        }
+      ],
+
+      "transition": {
+        "_comment": "When the players read this file (cat/less/file/grep…), the stage switches by itself. A command pattern works too: 'on_command'.",
+        "next": "finale",
+        "on_file_read": ["note.txt"],
+        "on_command": []
+      }
+    },
+
+    "finale": {
+      "title": "The way out",
+      "description": "The last door. It needs a code.",
+      "gm_note": "The code {{door_code}} is in the note and in the picture. If the conversation with the system went badly, play the exit at the table.",
+
+      "commands": [
+        {"command": "дверь --код <digits>", "description": "enter the door code"},
+        {"command": "дверь --статус", "description": "door status"}
+      ],
+
+      "scripted": [
+        {"pattern": "^дверь\\s+--статус$", "file": "door_status.txt", "delay": 1.0},
+        {"pattern": "^дверь\\s+--код\\s+{{door_code}}$", "file": "door_open.txt", "delay": 2.0},
+        {"pattern": "^дверь\\s+--код\\s+\\d+$", "file": "door_denied.txt", "delay": 1.5}
+      ],
+
+      "transition": {}
+    }
+  }
+}

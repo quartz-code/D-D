@@ -1,0 +1,11 @@
+OUTER PRESSURE DOOR .................. status
+--------------------------------------------------------
+position .......................... CLOSED
+bolt .............................. engaged
+code lock ......................... serviceable, 4 digits
+attempts remaining ................ unlimited (logged)
+manual opening .................... handwheel removed from the shaft
+--------------------------------------------------------
+NOTE FROM THE DUTY OFFICER:
+  The code is known to the duty officer of the shift.
+  I am the duty officer of the shift.

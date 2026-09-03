@@ -1,0 +1,12 @@
+CODE ENTERED ......................... {{door_code}}
+--------------------------------------------------------
+digit 1 check ..................... accepted
+digit 2 check ..................... accepted
+digit 3 check ..................... accepted
+digit 4 check ..................... accepted
+
+BOLT WITHDRAWN. THE PRESSURE DOOR IS OPENING.
+--------------------------------------------------------
+NOTE FROM THE DUTY OFFICER:
+  Shift handed over.
+  Shift handed over?
