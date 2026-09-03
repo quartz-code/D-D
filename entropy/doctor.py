@@ -18,10 +18,9 @@ import os
 import shutil
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable
 
-from . import config, deepseek, paths, quest as quest_mod, session as session_mod, ui
+from . import config, deepseek, quest as quest_mod, session as session_mod, ui
 
 ОК, ПРЕДУПРЕЖДЕНИЕ, ОШИБКА = "ок", "внимание", "ошибка"
 

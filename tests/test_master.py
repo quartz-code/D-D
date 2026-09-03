@@ -115,3 +115,26 @@ class TestMaster(MasterTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestИменаКоманд(MasterTestCase):
+    """Имена команд пульта не должны перекрывать друг друга."""
+
+    def test_возможности_это_комнаты_а_дополнения_это_галочки(self):
+        _, комнаты = self.capture(self.console.dispatch, ["возможности"])
+        self.assertIn("коридор_3", комнаты)
+        _, дополнения = self.capture(self.console.dispatch, ["дополнения"])
+        self.assertIn("Журнал партии", дополнения)
+        self.assertNotIn("коридор_3", дополнения)
+
+    def test_каждая_команда_из_справки_отзывается(self):
+        """Опечатка в имени команды не должна выясняться посреди партии."""
+        from entropy.master import HELP
+        for строка in HELP:
+            имя = строка.split()[0]
+            with self.subTest(команда=имя):
+                # Команды подтверждения спрашивают ведущего — отвечаем «нет».
+                with mock.patch("builtins.input", return_value="нет"):
+                    код, вывод = self.capture(self.console.dispatch, [имя])
+                self.assertNotIn("неизвестная команда", вывод,
+                                 f"команда «{имя}» не отзывается")
